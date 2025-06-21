@@ -1,18 +1,18 @@
 package main
 
 import (
-	"github.com/user/shannon/cmd/discover"
-	"github.com/user/shannon/cmd/edit"
-	"github.com/user/shannon/cmd/export"
-	imports "github.com/user/shannon/cmd/import"
-	"github.com/user/shannon/cmd/list"
-	"github.com/user/shannon/cmd/recent"
-	"github.com/user/shannon/cmd/root"
-	"github.com/user/shannon/cmd/search"
-	"github.com/user/shannon/cmd/stats"
-	"github.com/user/shannon/cmd/tui"
-	"github.com/user/shannon/cmd/view"
-	"github.com/user/shannon/cmd/xargs"
+	"github.com/neilberkman/shannon/cmd/discover"
+	"github.com/neilberkman/shannon/cmd/edit"
+	"github.com/neilberkman/shannon/cmd/export"
+	imports "github.com/neilberkman/shannon/cmd/import"
+	"github.com/neilberkman/shannon/cmd/list"
+	"github.com/neilberkman/shannon/cmd/recent"
+	"github.com/neilberkman/shannon/cmd/root"
+	"github.com/neilberkman/shannon/cmd/search"
+	"github.com/neilberkman/shannon/cmd/stats"
+	"github.com/neilberkman/shannon/cmd/tui"
+	"github.com/neilberkman/shannon/cmd/view"
+	"github.com/neilberkman/shannon/cmd/xargs"
 )
 
 // Version information, set during build

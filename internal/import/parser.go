@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/user/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/models"
 )
 
 // Parser handles parsing Claude export files

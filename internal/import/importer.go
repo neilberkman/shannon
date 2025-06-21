@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/user/shannon/internal/db"
-	"github.com/user/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/models"
 )
 
 // Importer handles importing Claude export files into the database
@@ -51,14 +51,24 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer func() {
+		if err := parser.Close(); err != nil {
+			// Log error but don't fail the import
+			fmt.Fprintf(os.Stderr, "Warning: failed to close parser: %v\n", err)
+		}
+	}()
 
 	// Start transaction
 	tx, err := i.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			// Only log if it's not already committed
+			fmt.Fprintf(os.Stderr, "Warning: failed to rollback transaction: %v\n", err)
+		}
+	}()
 
 	// Use streaming parse for large files
 	fileInfo, _ := os.Stat(filePath)
@@ -189,7 +199,11 @@ func (i *Importer) getExistingMessageUUIDs(tx *sql.Tx, convUUID string) (map[str
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	existing := make(map[string]struct{})
 	for rows.Next() {
@@ -304,7 +318,11 @@ func (i *Importer) loadExistingMessageIDs(tx *sql.Tx, convID int64, messageIDMap
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	for rows.Next() {
 		var id int64
@@ -353,7 +371,11 @@ func (i *Importer) fileHash(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close file: %v\n", err)
+		}
+	}()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {

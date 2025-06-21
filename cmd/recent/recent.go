@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/user/shannon/internal/config"
-	"github.com/user/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/db"
 )
 
 var (
@@ -114,16 +114,24 @@ func runRecent(cmd *cobra.Command, args []string) error {
 	default:
 		// Table format
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tMessages\tLast Updated\tName")
-		fmt.Fprintln(w, "--\t--------\t------------\t----")
+		if _, err := fmt.Fprintln(w, "ID\tMessages\tLast Updated\tName"); err != nil {
+			return fmt.Errorf("failed to write header: %w", err)
+		}
+		if _, err := fmt.Fprintln(w, "--\t--------\t------------\t----"); err != nil {
+			return fmt.Errorf("failed to write separator: %w", err)
+		}
 
 		for _, c := range conversations {
 			// Format relative time
 			relTime := formatRelativeTime(c.UpdatedAt)
 			name := truncate(c.Name, 60)
-			fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", c.ID, c.MessageCount, relTime, name)
+			if _, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", c.ID, c.MessageCount, relTime, name); err != nil {
+				return fmt.Errorf("failed to write conversation: %w", err)
+			}
 		}
-		w.Flush()
+		if err := w.Flush(); err != nil {
+			return fmt.Errorf("failed to flush output: %w", err)
+		}
 	}
 
 	return nil

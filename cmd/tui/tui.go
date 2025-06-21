@@ -8,10 +8,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/user/shannon/internal/config"
-	"github.com/user/shannon/internal/db"
-	"github.com/user/shannon/internal/discovery"
-	"github.com/user/shannon/internal/search"
+	"github.com/neilberkman/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/discovery"
+	"github.com/neilberkman/shannon/internal/search"
 )
 
 // ViewType represents the current active view
@@ -222,7 +222,11 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Create search engine
 	engine := search.NewEngine(database)

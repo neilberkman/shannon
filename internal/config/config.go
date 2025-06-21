@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/viper"
-	"github.com/user/shannon/pkg/platform"
+	"github.com/neilberkman/shannon/pkg/platform"
 )
 
 type Config struct {

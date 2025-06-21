@@ -12,7 +12,11 @@ func TestDatabaseInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("Warning: failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
@@ -21,7 +25,11 @@ func TestDatabaseInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("Warning: failed to close database: %v", err)
+		}
+	}()
 
 	// Verify tables exist
 	tables := []string{
@@ -57,14 +65,22 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("Warning: failed to clean up temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 	db, err := New(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("Warning: failed to close database: %v", err)
+		}
+	}()
 
 	// Test transaction
 	tx, err := db.Begin()

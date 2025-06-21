@@ -9,8 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"github.com/user/shannon/internal/models"
-	"github.com/user/shannon/internal/search"
+	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/rendering"
+	"github.com/neilberkman/shannon/internal/search"
 )
 
 // Remove duplicated styles - now using shared styles from styles.go
@@ -25,6 +26,32 @@ func (i searchItem) Title() string {
 }
 
 func (i searchItem) Description() string {
+	// Try to render snippet with markdown formatting
+	renderer, err := rendering.NewMarkdownRenderer(80)
+	if err != nil {
+		// Fallback to plain text
+		return i.getPlainSnippet()
+	}
+	
+	rendered, err := renderer.RenderMessage(i.result.Snippet, i.result.Sender, true)
+	if err != nil {
+		// Fallback to plain text
+		return i.getPlainSnippet()
+	}
+	
+	// Clean up the rendered text for list display
+	snippet := strings.ReplaceAll(rendered, "\n", " ")
+	snippet = strings.TrimSpace(snippet)
+	
+	// Truncate if too long
+	if len(snippet) > 80 {
+		snippet = snippet[:77] + "..."
+	}
+	
+	return snippet
+}
+
+func (i searchItem) getPlainSnippet() string {
 	snippet := strings.ReplaceAll(i.result.Snippet, "\n", " ")
 	if len(snippet) > 80 {
 		snippet = snippet[:77] + "..."

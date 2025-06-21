@@ -28,7 +28,9 @@ func New(dbPath string) (*DB, error) {
 
 	// Initialize schema
 	if err := db.initSchema(); err != nil {
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to initialize schema: %w (also failed to close connection: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
@@ -88,24 +90,37 @@ func (db *DB) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 	CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id);
 	
-	-- Full-text search table
+	-- Enhanced full-text search with multiple tokenizers for different content types
+	-- Main FTS table with porter stemming for natural language
 	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 		text,
 		content=messages,
-		content_rowid=id
+		content_rowid=id,
+		tokenize='porter unicode61'
 	);
 	
-	-- Triggers to keep FTS index in sync
+	-- Code-specific FTS table that preserves symbols and camelCase
+	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts_code USING fts5(
+		text,
+		content=messages,
+		content_rowid=id,
+		tokenize='unicode61'
+	);
+	
+	-- Triggers to keep FTS indices in sync
 	CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
 		INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+		INSERT INTO messages_fts_code(rowid, text) VALUES (new.id, new.text);
 	END;
 	
 	CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
 		DELETE FROM messages_fts WHERE rowid = old.id;
+		DELETE FROM messages_fts_code WHERE rowid = old.id;
 	END;
 	
 	CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
 		UPDATE messages_fts SET text = new.text WHERE rowid = new.id;
+		UPDATE messages_fts_code SET text = new.text WHERE rowid = new.id;
 	END;
 	
 	-- Import tracking table

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/db"
 )
 
 func TestNewEngine(t *testing.T) {

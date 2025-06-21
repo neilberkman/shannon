@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/shannon/internal/models"
-	"github.com/user/shannon/internal/search"
+	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/search"
 )
 
 // conversationItem implements list.Item for conversations

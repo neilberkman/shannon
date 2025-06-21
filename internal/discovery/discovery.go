@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/shannon/internal/models"
-	"github.com/user/shannon/pkg/platform"
+	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/pkg/platform"
 )
 
 // ExportFile represents a discovered Claude export file

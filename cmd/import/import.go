@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/user/shannon/internal/config"
-	"github.com/user/shannon/internal/db"
-	"github.com/user/shannon/internal/import"
+	"github.com/neilberkman/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/import"
 )
 
 var (
@@ -57,7 +57,11 @@ func runImport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Create importer
 	importer := imports.NewImporter(database, cfg.Import.BatchSize, cfg.Import.Verbose || viper.GetBool("verbose"))

@@ -3,11 +3,13 @@ package search
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/user/shannon/internal/db"
-	"github.com/user/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/models"
 )
 
 // Engine handles search operations
@@ -42,7 +44,11 @@ func (e *Engine) Search(opts SearchOptions) ([]*models.SearchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var results []*models.SearchResult
 	for rows.Next() {
@@ -73,8 +79,15 @@ func (e *Engine) buildSearchQuery(opts SearchOptions) (string, []interface{}) {
 	var args []interface{}
 	argIndex := 1
 
-	// Base query with FTS5
-	baseQuery := `
+	// Determine which FTS table to use based on query characteristics
+	useCodeTable := e.isCodeQuery(opts.Query)
+	ftsTable := "messages_fts"
+	if useCodeTable {
+		ftsTable = "messages_fts_code"
+	}
+
+	// Base query with dynamic FTS table selection
+	baseQuery := fmt.Sprintf(`
 		SELECT 
 			c.id,
 			c.uuid,
@@ -83,14 +96,14 @@ func (e *Engine) buildSearchQuery(opts SearchOptions) (string, []interface{}) {
 			m.uuid,
 			m.sender,
 			m.text,
-			snippet(messages_fts, 0, '<mark>', '</mark>', '...', 32) as snippet,
+			snippet(%s, 0, '<mark>', '</mark>', '...', 32) as snippet,
 			m.created_at,
 			rank
-		FROM messages_fts
-		JOIN messages m ON messages_fts.rowid = m.id
+		FROM %s
+		JOIN messages m ON %s.rowid = m.id
 		JOIN conversations c ON m.conversation_id = c.id
-		WHERE messages_fts MATCH ?
-	`
+		WHERE %s MATCH ?
+	`, ftsTable, ftsTable, ftsTable, ftsTable)
 
 	// Process search query for FTS5
 	ftsQuery := e.processFTSQuery(opts.Query)
@@ -170,6 +183,64 @@ func (e *Engine) processFTSQuery(userQuery string) string {
 	return query
 }
 
+// isCodeQuery determines if a query should use the code-specific FTS table
+func (e *Engine) isCodeQuery(query string) bool {
+	// Patterns that indicate code-related searches
+	codePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`[a-z][A-Z]`),                    // camelCase
+		regexp.MustCompile(`[A-Z][a-z]+[A-Z]`),             // PascalCase  
+		regexp.MustCompile(`\w+_\w+`),                      // snake_case
+		regexp.MustCompile(`\w+\.\w+`),                     // method.calls or file.ext
+		regexp.MustCompile(`\w+::\w+`),                     // namespace::function
+		regexp.MustCompile(`\w+\(\)`),                      // function()
+		regexp.MustCompile(`\w+\[\]`),                      // array[]
+		regexp.MustCompile(`[{}()\[\]<>]`),                 // brackets/braces
+		regexp.MustCompile(`[=!<>]=?`),                     // operators
+		regexp.MustCompile(`\+\+|--|&&|\|\||->|=>`),       // compound operators
+		regexp.MustCompile(`\b(def|function|class|import|export|const|let|var|if|else|for|while|return|async|await|interface|type|struct|enum)\b`), // keywords
+		regexp.MustCompile(`\b[A-Z_][A-Z0-9_]{2,}\b`),     // CONSTANTS
+		regexp.MustCompile(`#\w+`),                         // #hashtags or CSS/preprocessor
+		regexp.MustCompile(`\$\w+`),                        // $variables
+		regexp.MustCompile(`@\w+`),                         // @decorators
+		regexp.MustCompile(`\\\w+`),                        // \commands
+		regexp.MustCompile(`\b\w+\.(js|ts|py|go|rs|cpp|c|h|java|kt|swift|rb|php|cs|scala|clj|hs|ml|elm|dart|vue|jsx|tsx|css|scss|sass|less|html|xml|json|yaml|yml|toml|ini|cfg|conf|sh|bash|zsh|fish|ps1|bat|cmd|sql|md|rst|tex|r|m|pl|lua|vim|emacs)\b`), // file extensions
+	}
+
+	// Check if query matches any code patterns
+	for _, pattern := range codePatterns {
+		if pattern.MatchString(query) {
+			return true
+		}
+	}
+
+	// Check for technical terms that commonly appear in code discussions
+	technicalTerms := []string{
+		"api", "json", "xml", "http", "https", "url", "uri", "sql", "database", "db",
+		"frontend", "backend", "fullstack", "devops", "ci", "cd", "git", "github", "gitlab",
+		"docker", "kubernetes", "aws", "azure", "gcp", "serverless", "microservice",
+		"framework", "library", "package", "dependency", "npm", "pip", "cargo", "maven",
+		"compiler", "interpreter", "runtime", "virtual", "container", "deployment",
+		"authentication", "authorization", "oauth", "jwt", "token", "session", "cookie",
+		"cache", "redis", "mongodb", "postgresql", "mysql", "sqlite", "nosql",
+		"async", "sync", "promise", "callback", "event", "listener", "handler",
+		"component", "module", "service", "controller", "model", "view", "template",
+		"regex", "regexp", "pattern", "match", "parse", "serialize", "deserialize",
+		"algorithm", "optimization", "performance", "benchmark", "profiling", "debug",
+		"test", "unit", "integration", "e2e", "mock", "stub", "fixture", "spec",
+		"build", "compile", "transpile", "bundle", "minify", "lint", "format",
+		"version", "release", "deploy", "staging", "production", "environment",
+	}
+
+	queryLower := strings.ToLower(query)
+	for _, term := range technicalTerms {
+		if strings.Contains(queryLower, term) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // SearchConversations searches conversation titles
 func (e *Engine) SearchConversations(query string, limit int) ([]*models.Conversation, error) {
 	sqlQuery := `
@@ -184,7 +255,11 @@ func (e *Engine) SearchConversations(query string, limit int) ([]*models.Convers
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var conversations []*models.Conversation
 	for rows.Next() {
@@ -227,7 +302,11 @@ func (e *Engine) GetConversation(conversationID int64) (*models.Conversation, []
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var messages []*models.Message
 	for rows.Next() {
@@ -329,7 +408,11 @@ func (e *Engine) GetAllConversations(limit, offset int) ([]*models.Conversation,
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var conversations []*models.Conversation
 	for rows.Next() {

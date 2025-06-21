@@ -12,10 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"github.com/user/shannon/internal/config"
-	"github.com/user/shannon/internal/db"
-	"github.com/user/shannon/internal/models"
-	"github.com/user/shannon/internal/search"
+	"github.com/neilberkman/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/rendering"
+	"github.com/neilberkman/shannon/internal/search"
 )
 
 var (
@@ -32,6 +33,8 @@ var (
 	showContext    bool
 	contextLines   int
 	quiet          bool
+	markdown       bool
+	noMarkdown     bool
 )
 
 // searchCmd represents the search command
@@ -69,6 +72,14 @@ func init() {
 	SearchCmd.Flags().BoolVar(&showContext, "context", false, "show full message context")
 	SearchCmd.Flags().IntVar(&contextLines, "context-lines", 2, "number of context messages to show")
 	SearchCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress extra output (pipe-friendly)")
+	SearchCmd.Flags().BoolVarP(&markdown, "markdown", "m", true, "render markdown formatting in output")
+	SearchCmd.Flags().BoolVar(&noMarkdown, "no-markdown", false, "disable markdown rendering (plain text only)")
+	// Make no-markdown override markdown
+	SearchCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if noMarkdown {
+			markdown = false
+		}
+	}
 }
 
 func runSearch(cmd *cobra.Command, args []string) error {
@@ -82,7 +93,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Create search engine
 	engine := search.NewEngine(database)
@@ -175,7 +190,21 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 		convName := truncate(r.ConversationName, 50)
 
 		if showSnippets {
-			snippet := strings.ReplaceAll(r.Snippet, "\n", " ")
+			snippet := r.Snippet
+			
+			// Apply markdown rendering if enabled
+			if markdown {
+				renderer, err := rendering.NewMarkdownRenderer(60)
+				if err == nil {
+					rendered, err := renderer.RenderMessage(r.Snippet, r.Sender, true)
+					if err == nil {
+						snippet = rendered
+					}
+				}
+			}
+			
+			// Clean up for tabular display
+			snippet = strings.ReplaceAll(snippet, "\n", " ")
 			snippet = truncate(snippet, 60)
 			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, snippet); err != nil {
 				return fmt.Errorf("failed to write result row: %w", err)
@@ -274,7 +303,11 @@ func showMessageContext(database *db.DB, result *models.SearchResult, contextLin
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	// Collect all messages
 	var messages []struct {
@@ -335,8 +368,20 @@ func showMessageContext(database *db.DB, result *models.SearchResult, contextLin
 		caser := cases.Title(language.English)
 		sender := caser.String(msg.Sender)
 
-		// Truncate message for display
-		text := strings.ReplaceAll(msg.Text, "\n", " ")
+		// Apply markdown rendering if enabled
+		text := msg.Text
+		if markdown {
+			renderer, err := rendering.NewMarkdownRenderer(100)
+			if err == nil {
+				rendered, err := renderer.RenderMessage(msg.Text, msg.Sender, false)
+				if err == nil {
+					text = rendered
+				}
+			}
+		}
+		
+		// Clean up for display
+		text = strings.ReplaceAll(text, "\n", " ")
 		text = truncate(text, 100)
 
 		if i == targetIndex {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/user/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/config"
 )
 
 var (

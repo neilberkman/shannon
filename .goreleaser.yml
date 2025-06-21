@@ -47,18 +47,51 @@ changelog:
 
 release:
   github:
-    owner: yourusername
+    owner: neilberkman
     name: shannon
-  draft: true
+  draft: false
   prerelease: auto
+  make_latest: true
+  mode: replace
+  header: |
+    ## Shannon {{.Tag}} - Advanced Claude Conversation Search
+
+    Named after Claude Shannon, the father of information theory.
+
+    ### 🎯 Quick Start
+    ```bash
+    # Find Claude exports automatically
+    shannon discover
+
+    # Import conversations  
+    shannon import conversations.json
+
+    # Search with natural language
+    shannon search "machine learning projects"
+
+    # Interactive TUI with file watching
+    shannon tui --watch
+    ```
+
+    ### 📦 Installation Methods
+    - **Homebrew**: `brew install neilberkman/shannon/shannon`
+    - **Direct Download**: See assets below
+    - **Go Install**: `go install github.com/neilberkman/shannon@latest`
+
+  footer: |
+    **Full Changelog**: https://github.com/neilberkman/shannon/compare/{{.PreviousTag}}...{{.Tag}}
+    
+    ---
+    💡 **New to Shannon?** Check out the [Quick Start Guide](https://github.com/neilberkman/shannon#quick-start)
+    🐛 **Found a bug?** Please [open an issue](https://github.com/neilberkman/shannon/issues/new)
 
 brews:
   - name: shannon
-    tap:
-      owner: yourusername
+    repository:
+      owner: neilberkman
       name: homebrew-shannon
-    folder: Formula
-    homepage: "https://github.com/yourusername/shannon"
+    directory: Formula
+    homepage: "https://github.com/neilberkman/shannon"
     description: "Advanced search and analysis tool for Claude conversation exports"
     license: "MIT"
     test: |
@@ -66,23 +99,94 @@ brews:
     install: |
       bin.install "shannon"
 
-scoop:
-  bucket:
-    owner: yourusername
-    name: scoop-shannon
-  homepage: "https://github.com/yourusername/shannon"
-  description: "Advanced search and analysis tool for Claude conversation exports"
-  license: MIT
+scoops:
+  - name: shannon
+    repository:
+      owner: neilberkman
+      name: scoop-shannon
+    homepage: "https://github.com/neilberkman/shannon"
+    description: "Advanced search and analysis tool for Claude conversation exports"
+    license: MIT
 
 nfpms:
   - id: shannon
     package_name: shannon
-    vendor: YourName
-    homepage: "https://github.com/yourusername/shannon"
-    maintainer: "YourName <your@email.com>"
+    vendor: Neil Berkman
+    homepage: "https://github.com/neilberkman/shannon"
+    maintainer: "Neil Berkman <neil@xuku.com>"
     description: "Advanced search and analysis tool for Claude conversation exports"
     license: MIT
+    section: utils
+    priority: optional
     formats:
       - deb
       - rpm
       - apk
+    dependencies:
+      - sqlite3
+    recommends:
+      - curl
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/shannon/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/shannon/README.md
+      - src: CHANGELOG.md
+        dst: /usr/share/doc/shannon/CHANGELOG.md
+
+dockers:
+  - image_templates:
+      - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
+      - "ghcr.io/neilberkman/shannon:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
+      - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
+      - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+  - image_templates:
+      - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
+      - "ghcr.io/neilberkman/shannon:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
+      - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
+      - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+
+docker_manifests:
+  - name_template: "ghcr.io/neilberkman/shannon:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
+      - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/neilberkman/shannon:latest"
+    image_templates:
+      - "ghcr.io/neilberkman/shannon:latest-amd64"
+      - "ghcr.io/neilberkman/shannon:latest-arm64"
+
+snapcrafts:
+  - name: shannon
+    summary: Advanced search and analysis tool for Claude conversation exports
+    description: |
+      Shannon is a powerful CLI tool for searching through your exported Claude conversations.
+      Named after Claude Shannon, the father of information theory, this tool provides full-text 
+      search capabilities with advanced query features, preserves conversation threading, and 
+      offers both CLI and TUI interfaces for different use cases.
+    grade: stable
+    confinement: strict
+    license: MIT
+    base: core20
+    apps:
+      shannon:
+        command: shannon
+        plugs: ["home", "network"]

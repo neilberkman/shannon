@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/user/shannon/internal/config"
-	"github.com/user/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/config"
+	"github.com/neilberkman/shannon/internal/db"
 )
 
 var (

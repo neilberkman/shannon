@@ -19,7 +19,9 @@ func TestGet(t *testing.T) {
 	}()
 
 	// Initialize config first
-	Init()
+	if err := Init(); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
 
 	// Test basic config loading
 	cfg := Get()
@@ -43,7 +45,9 @@ func TestGet(t *testing.T) {
 
 func TestConfigDefaults(t *testing.T) {
 	// Initialize config first
-	Init()
+	if err := Init(); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
 	
 	cfg := Get()
 	

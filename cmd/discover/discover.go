@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/user/shannon/internal/discovery"
+	"github.com/neilberkman/shannon/internal/discovery"
 )
 
 var (

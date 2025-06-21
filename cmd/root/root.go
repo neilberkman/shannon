@@ -32,10 +32,11 @@ search capabilities with advanced query features, preserves conversation threadi
 offers both CLI and TUI interfaces for different use cases.
 
 Quick start:
-  shannon import conversations.json
-  shannon search "python"
-  shannon recent
-  shannon tui`,
+  shannon discover                    # Find Claude exports
+  shannon import conversations.json   # Import an export
+  shannon search "python"             # Search conversations  
+  shannon recent                      # Show recent activity
+  shannon tui                         # Interactive interface`,
 	Version: Version,
 
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

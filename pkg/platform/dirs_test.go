@@ -70,6 +70,40 @@ func TestDirectoryCreation(t *testing.T) {
 	}
 }
 
+func TestGetDownloadsDir(t *testing.T) {
+	dir, err := GetDownloadsDir()
+	if err != nil {
+		t.Fatalf("GetDownloadsDir failed: %v", err)
+	}
+
+	if dir == "" {
+		t.Error("Downloads dir should return a non-empty path")
+	}
+
+	// Should be an absolute path
+	if !filepath.IsAbs(dir) {
+		t.Error("Downloads dir should return an absolute path")
+	}
+
+	// Should end with "Downloads"
+	if filepath.Base(dir) != "Downloads" {
+		t.Error("Downloads dir should end with 'Downloads'")
+	}
+
+	// Directory should exist or be creatable
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		// Try to create it to verify the path is valid
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Errorf("Downloads directory path is invalid: %s", dir)
+		} else {
+			// Clean up test directory if we created it
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("Warning: failed to clean up test directory: %v", err)
+			}
+		}
+	}
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	return filepath.Base(s) == substr || filepath.Base(filepath.Dir(s)) == substr

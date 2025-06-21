@@ -85,3 +85,24 @@ func getWindowsDataDir(appName string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "AppData", "Local", appName)
 }
+
+// GetDownloadsDir returns the platform-specific Downloads directory
+func GetDownloadsDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		// Try USERPROFILE/Downloads first, fallback to home/Downloads
+		if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
+			return filepath.Join(userProfile, "Downloads"), nil
+		}
+		return filepath.Join(home, "Downloads"), nil
+	case "darwin", "linux":
+		return filepath.Join(home, "Downloads"), nil
+	default:
+		return filepath.Join(home, "Downloads"), nil
+	}
+}

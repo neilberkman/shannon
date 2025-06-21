@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/user/shannon/cmd/discover"
 	"github.com/user/shannon/cmd/edit"
 	"github.com/user/shannon/cmd/export"
 	imports "github.com/user/shannon/cmd/import"
@@ -30,6 +31,7 @@ func main() {
 
 	// Add subcommands
 	root.RootCmd.AddCommand(imports.ImportCmd)
+	root.RootCmd.AddCommand(discover.DiscoverCmd)
 	root.RootCmd.AddCommand(list.ListCmd)
 	root.RootCmd.AddCommand(recent.RecentCmd)
 	root.RootCmd.AddCommand(search.SearchCmd)

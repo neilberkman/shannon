@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/user/shannon/internal/config"
 	"github.com/user/shannon/internal/db"
+	"github.com/user/shannon/internal/discovery"
 	"github.com/user/shannon/internal/search"
 )
 
@@ -27,10 +29,14 @@ type mainModel struct {
 	viewType    ViewType
 	width       int
 	height      int
+	watchFiles  bool
+	scanner     *discovery.Scanner
+	notification string
+	notificationTime time.Time
 }
 
 // newMainModel creates a new main model
-func newMainModel(engine *search.Engine, initialQuery string) mainModel {
+func newMainModel(engine *search.Engine, initialQuery string, watchFiles bool) mainModel {
 	var currentView tea.Model
 	var viewType ViewType
 
@@ -58,16 +64,43 @@ func newMainModel(engine *search.Engine, initialQuery string) mainModel {
 		viewType = ViewBrowse
 	}
 
+	var scanner *discovery.Scanner
+	if watchFiles {
+		scanner = discovery.NewScanner()
+	}
+
 	return mainModel{
 		engine:      engine,
 		currentView: currentView,
 		viewType:    viewType,
+		watchFiles:  watchFiles,
+		scanner:     scanner,
 	}
+}
+
+// checkExportsMsg is sent when we should check for new exports
+type checkExportsMsg struct{}
+
+// newExportsFoundMsg is sent when new exports are discovered
+type newExportsFoundMsg struct {
+	count int
 }
 
 // Init initializes the main model
 func (m mainModel) Init() tea.Cmd {
-	return m.currentView.Init()
+	var cmds []tea.Cmd
+	
+	// Initialize child view
+	cmds = append(cmds, m.currentView.Init())
+	
+	// Start export checking if watching
+	if m.watchFiles {
+		cmds = append(cmds, tea.Tick(time.Minute*2, func(t time.Time) tea.Msg {
+			return checkExportsMsg{}
+		}))
+	}
+	
+	return tea.Batch(cmds...)
 }
 
 // Update handles messages and routes them to child views
@@ -80,6 +113,26 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.currentView, cmd = m.currentView.Update(msg)
 		return m, cmd
+
+	case checkExportsMsg:
+		if m.scanner != nil {
+			return m, tea.Batch(
+				func() tea.Msg {
+					exports, err := m.scanner.GetRecentExports(time.Minute * 5)
+					if err != nil || len(exports) == 0 {
+						return nil
+					}
+					return newExportsFoundMsg{count: len(exports)}
+				},
+				tea.Tick(time.Minute*2, func(t time.Time) tea.Msg {
+					return checkExportsMsg{}
+				}),
+			)
+		}
+
+	case newExportsFoundMsg:
+		m.notification = fmt.Sprintf("🆕 Found %d new Claude export(s) in Downloads", msg.count)
+		m.notificationTime = time.Now()
 
 	case tea.KeyMsg:
 		// Handle global keybindings
@@ -110,7 +163,15 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the current view
 func (m mainModel) View() string {
-	return m.currentView.View()
+	view := m.currentView.View()
+	
+	// Add notification if recent and watching
+	if m.notification != "" && time.Since(m.notificationTime) < time.Second*10 {
+		// Show notification at the bottom for 10 seconds
+		view += "\n" + NotificationStyle.Render(m.notification)
+	}
+	
+	return view
 }
 
 // checkViewSwitch checks if a child view wants to switch to another view
@@ -123,6 +184,7 @@ func checkViewSwitch(currentView tea.Model) (tea.Model, bool) {
 
 var (
 	initialQuery string
+	watchFiles   bool
 )
 
 // TuiCmd represents the tui command
@@ -143,7 +205,7 @@ Examples:
 }
 
 func init() {
-	// No special flags needed for now
+	TuiCmd.Flags().BoolVarP(&watchFiles, "watch", "w", false, "watch Downloads folder for new Claude exports")
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {
@@ -166,7 +228,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	engine := search.NewEngine(database)
 
 	// Create main model
-	model := newMainModel(engine, initialQuery)
+	model := newMainModel(engine, initialQuery, watchFiles)
 
 	// Start TUI with logging for debugging
 	debugFile, err := tea.LogToFile("debug.log", "debug")

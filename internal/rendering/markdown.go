@@ -174,10 +174,7 @@ func (mr *MarkdownRenderer) formatInlineCode(text string) string {
 			result.WriteString(part)
 		}
 		
-		// Add back the backtick separator, except for the last part
-		if i < len(parts)-1 && !inCode {
-			// Only add backtick if we're not in code and it's not the last part
-		}
+		// Note: backtick separators are handled by the formatting logic above
 	}
 	
 	return result.String()

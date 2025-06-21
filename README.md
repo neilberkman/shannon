@@ -17,18 +17,38 @@ Named after Claude Shannon, the father of information theory, this tool helps yo
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install yourusername/shannon/shannon
+```
+
+### Install Script (macOS/Linux)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/shannon/main/install.sh | bash
+```
+
 ### From Source
 
 ```bash
-go install github.com/user/shannon@latest
+go install github.com/yourusername/shannon@latest
 ```
 
 ### Pre-built Binaries
 
-Coming soon via:
-- Homebrew (macOS/Linux)
-- Scoop (Windows)
-- Direct download from releases
+Download the latest release for your platform from the [releases page](https://github.com/yourusername/shannon/releases).
+
+- **macOS**: `shannon_x.x.x_darwin_amd64.tar.gz` (Intel) or `shannon_x.x.x_darwin_arm64.tar.gz` (Apple Silicon)
+- **Linux**: `shannon_x.x.x_linux_amd64.tar.gz` or `shannon_x.x.x_linux_arm64.tar.gz`
+- **Windows**: `shannon_x.x.x_windows_amd64.zip` or `shannon_x.x.x_windows_arm64.zip`
+
+### Scoop (Windows)
+
+```bash
+scoop bucket add shannon https://github.com/yourusername/scoop-shannon
+scoop install shannon
+```
 
 ## Usage
 

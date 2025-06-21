@@ -1,4 +1,4 @@
-project_name: claudesearch
+project_name: shannon
 
 before:
   hooks:
@@ -6,9 +6,9 @@ before:
     - go generate ./...
 
 builds:
-  - id: claudesearch
+  - id: shannon
     main: ./main.go
-    binary: claudesearch
+    binary: shannon
     env:
       - CGO_ENABLED=0
     goos:
@@ -22,7 +22,7 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - id: claudesearch
+  - id: shannon
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
@@ -47,40 +47,40 @@ changelog:
 
 release:
   github:
-    owner: user
-    name: claudesearch
+    owner: yourusername
+    name: shannon
   draft: true
   prerelease: auto
 
 brews:
-  - name: claudesearch
+  - name: shannon
     tap:
-      owner: user
-      name: homebrew-claudesearch
+      owner: yourusername
+      name: homebrew-shannon
     folder: Formula
-    homepage: "https://github.com/user/claudesearch"
-    description: "Search your Claude conversation history"
+    homepage: "https://github.com/yourusername/shannon"
+    description: "Advanced search and analysis tool for Claude conversation exports"
     license: "MIT"
     test: |
-      system "#{bin}/claudesearch", "--version"
+      system "#{bin}/shannon", "--version"
     install: |
-      bin.install "claudesearch"
+      bin.install "shannon"
 
 scoop:
   bucket:
-    owner: user
-    name: scoop-claudesearch
-  homepage: "https://github.com/user/claudesearch"
-  description: "Search your Claude conversation history"
+    owner: yourusername
+    name: scoop-shannon
+  homepage: "https://github.com/yourusername/shannon"
+  description: "Advanced search and analysis tool for Claude conversation exports"
   license: MIT
 
 nfpms:
-  - id: claudesearch
-    package_name: claudesearch
-    vendor: User
-    homepage: "https://github.com/user/claudesearch"
-    maintainer: "User <user@example.com>"
-    description: "Search your Claude conversation history"
+  - id: shannon
+    package_name: shannon
+    vendor: YourName
+    homepage: "https://github.com/yourusername/shannon"
+    maintainer: "YourName <your@email.com>"
+    description: "Advanced search and analysis tool for Claude conversation exports"
     license: MIT
     formats:
       - deb

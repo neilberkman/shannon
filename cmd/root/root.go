@@ -14,6 +14,13 @@ var (
 	verbose bool
 )
 
+var (
+	// Version information - will be set by goreleaser
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 // RootCmd represents the base command
 var RootCmd = &cobra.Command{
 	Use:   "shannon",
@@ -29,6 +36,7 @@ Quick start:
   shannon search "python"
   shannon recent
   shannon tui`,
+	Version: Version,
 
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize configuration

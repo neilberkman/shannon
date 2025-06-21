@@ -1,0 +1,88 @@
+project_name: claudesearch
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: claudesearch
+    main: ./main.go
+    binary: claudesearch
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: claudesearch
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE*
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  github:
+    owner: user
+    name: claudesearch
+  draft: true
+  prerelease: auto
+
+brews:
+  - name: claudesearch
+    tap:
+      owner: user
+      name: homebrew-claudesearch
+    folder: Formula
+    homepage: "https://github.com/user/claudesearch"
+    description: "Search your Claude conversation history"
+    license: "MIT"
+    test: |
+      system "#{bin}/claudesearch", "--version"
+    install: |
+      bin.install "claudesearch"
+
+scoop:
+  bucket:
+    owner: user
+    name: scoop-claudesearch
+  homepage: "https://github.com/user/claudesearch"
+  description: "Search your Claude conversation history"
+  license: MIT
+
+nfpms:
+  - id: claudesearch
+    package_name: claudesearch
+    vendor: User
+    homepage: "https://github.com/user/claudesearch"
+    maintainer: "User <user@example.com>"
+    description: "Search your Claude conversation history"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk

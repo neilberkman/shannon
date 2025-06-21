@@ -7,42 +7,13 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"github.com/user/shannon/internal/models"
 	"github.com/user/shannon/internal/search"
 )
 
-// Styles
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4")).
-			PaddingLeft(2)
-
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4"))
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262")).
-			PaddingLeft(2)
-
-	conversationStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#04B575"))
-
-	dateStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262"))
-
-	snippetStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FAFAFA")).
-			PaddingLeft(4)
-
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Background(lipgloss.Color("#7D56F4")).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Padding(0, 1)
-)
+// Remove duplicated styles - now using shared styles from styles.go
 
 // searchItem implements list.Item for search results
 type searchItem struct {
@@ -99,12 +70,8 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 
 	// Create list
 	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4"))
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4"))
+	delegate.Styles.SelectedTitle = SelectedStyle
+	delegate.Styles.SelectedDesc = SelectedStyle
 
 	l := list.New(items, delegate, 0, 0)
 	l.Title = fmt.Sprintf("Search Results for: %s", query)
@@ -140,7 +107,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.mode {
 		case ModeList:
 			switch msg.String() {
-			case "q", "ctrl+c":
+			case "q":
 				return m, tea.Quit
 			case "enter":
 				if i, ok := m.list.SelectedItem().(searchItem); ok {
@@ -153,11 +120,14 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// View full conversation
 				if i, ok := m.list.SelectedItem().(searchItem); ok {
 					conv, messages, err := m.engine.GetConversation(i.result.ConversationID)
-					if err == nil {
+					if err != nil {
+						// Log error for debugging
+						fmt.Printf("Error loading conversation %d: %v\n", i.result.ConversationID, err)
+					} else {
 						m.conversation = conv
 						m.messages = messages
 						m.mode = ModeConversation
-						m.viewport.SetContent(m.renderConversation())
+						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
 						m.viewport.GotoTop()
 					}
 				}
@@ -172,11 +142,14 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Switch to conversation view
 					result := m.results[m.selected]
 					conv, messages, err := m.engine.GetConversation(result.ConversationID)
-					if err == nil {
+					if err != nil {
+						// Log error for debugging
+						fmt.Printf("Error loading conversation %d: %v\n", result.ConversationID, err)
+					} else {
 						m.conversation = conv
 						m.messages = messages
 						m.mode = ModeConversation
-						m.viewport.SetContent(m.renderConversation())
+						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
 						m.viewport.GotoTop()
 					}
 				}
@@ -211,11 +184,11 @@ func (m searchModel) View() string {
 	var help string
 	switch m.mode {
 	case ModeList:
-		help = helpStyle.Render("↑/↓: navigate • enter: view details • v: view conversation • q: quit")
+		help = HelpStyle.Render("↑/↓: navigate • enter: view details • v: view conversation • q: quit")
 	case ModeDetail:
-		help = helpStyle.Render("↑/↓: scroll • v: view full conversation • esc: back • q: quit")
+		help = HelpStyle.Render("↑/↓: scroll • v: view full conversation • esc: back • q: quit")
 	case ModeConversation:
-		help = helpStyle.Render("↑/↓: scroll • esc: back • q: quit")
+		help = HelpStyle.Render("↑/↓: scroll • esc: back • q: quit")
 	}
 
 	return content + "\n" + help
@@ -226,23 +199,24 @@ func (m searchModel) renderDetail(result *models.SearchResult) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(headerStyle.Render("Search Result Details"))
+	sb.WriteString(HeaderStyle.Render("Search Result Details"))
 	sb.WriteString("\n\n")
 
 	// Conversation info
-	sb.WriteString(conversationStyle.Bold(true).Render("Conversation: "))
+	sb.WriteString(ConversationStyle.Bold(true).Render("Conversation: "))
 	sb.WriteString(fmt.Sprintf("%s (ID: %d)\n", result.ConversationName, result.ConversationID))
 	
 	// Message info
-	sb.WriteString(conversationStyle.Bold(true).Render("Sender: "))
-	sb.WriteString(fmt.Sprintf("%s\n", strings.Title(result.Sender)))
+	sb.WriteString(ConversationStyle.Bold(true).Render("Sender: "))
+	caser := cases.Title(language.English)
+	sb.WriteString(fmt.Sprintf("%s\n", caser.String(result.Sender)))
 	
-	sb.WriteString(conversationStyle.Bold(true).Render("Date: "))
-	sb.WriteString(dateStyle.Render(result.CreatedAt.Format("2006-01-02 15:04:05")))
+	sb.WriteString(ConversationStyle.Bold(true).Render("Date: "))
+	sb.WriteString(DateStyle.Render(result.CreatedAt.Format("2006-01-02 15:04:05")))
 	sb.WriteString("\n\n")
 
 	// Full message with context
-	sb.WriteString(conversationStyle.Bold(true).Render("Message Context:"))
+	sb.WriteString(ConversationStyle.Bold(true).Render("Message Context:"))
 	sb.WriteString("\n")
 	sb.WriteString(strings.Repeat("─", m.width))
 	sb.WriteString("\n")
@@ -253,68 +227,28 @@ func (m searchModel) renderDetail(result *models.SearchResult) string {
 		for _, msg := range messages {
 			if msg.UUID == result.MessageUUID {
 				// Highlight the found message
-				sb.WriteString(selectedStyle.Render(fmt.Sprintf("[%s] %s", 
+				caser := cases.Title(language.English)
+				sb.WriteString(SelectedStyle.Render(fmt.Sprintf("[%s] %s", 
 					msg.CreatedAt.Format("15:04"),
-					strings.Title(msg.Sender))))
+					caser.String(msg.Sender))))
 				sb.WriteString("\n")
 				text := strings.TrimSpace(msg.Text)
 				if len(text) > 500 {
 					text = text[:497] + "..."
 				}
-				sb.WriteString(selectedStyle.Render(text))
+				sb.WriteString(SelectedStyle.Render(text))
 			} else {
 				// Regular message
+				caser := cases.Title(language.English)
 				sb.WriteString(fmt.Sprintf("[%s] %s\n", 
 					msg.CreatedAt.Format("15:04"),
-					strings.Title(msg.Sender)))
+					caser.String(msg.Sender)))
 				text := strings.TrimSpace(msg.Text)
 				if len(text) > 200 {
 					text = text[:197] + "..."
 				}
-				sb.WriteString(snippetStyle.Render(text))
+				sb.WriteString(SnippetStyle.Render(text))
 			}
-			sb.WriteString("\n\n")
-		}
-	}
-
-	return sb.String()
-}
-
-// renderConversation renders the full conversation view
-func (m searchModel) renderConversation() string {
-	var sb strings.Builder
-
-	// Header
-	sb.WriteString(headerStyle.Render(fmt.Sprintf("Conversation: %s", m.conversation.Name)))
-	sb.WriteString("\n")
-	sb.WriteString(dateStyle.Render(fmt.Sprintf("Messages: %d | Updated: %s", 
-		len(m.messages), 
-		m.conversation.UpdatedAt.Format("2006-01-02 15:04"))))
-	sb.WriteString("\n")
-	sb.WriteString(strings.Repeat("─", m.width))
-	sb.WriteString("\n\n")
-
-	// Messages
-	for i, msg := range m.messages {
-		// Message header
-		sender := strings.Title(msg.Sender)
-		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
-		
-		if msg.Sender == "human" {
-			sb.WriteString(conversationStyle.Bold(true).Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
-		} else {
-			sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#04B5FF")).
-				Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
-		}
-		sb.WriteString("\n")
-		
-		// Message text
-		text := strings.TrimSpace(msg.Text)
-		sb.WriteString(snippetStyle.Render(text))
-		
-		if i < len(m.messages)-1 {
-			sb.WriteString("\n\n")
-			sb.WriteString(strings.Repeat("─", m.width/2))
 			sb.WriteString("\n\n")
 		}
 	}

@@ -61,7 +61,11 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Build query
 	query := `
@@ -95,7 +99,11 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to query conversations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	// Collect results
 	var conversations []conversation
@@ -140,7 +148,11 @@ func getTotalCount(database *db.DB, searchTerm string) int {
 	}
 
 	var count int
-	database.QueryRow(query, args...).Scan(&count)
+	if err := database.QueryRow(query, args...).Scan(&count); err != nil {
+		// Log the error but return 0 to continue operation
+		fmt.Fprintf(os.Stderr, "Warning: failed to get total count: %v\n", err)
+		return 0
+	}
 	return count
 }
 
@@ -153,18 +165,26 @@ func truncate(s string, maxLen int) string {
 
 func outputTable(conversations []conversation, total int, searchTerm string, quiet bool) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tMessages\tUpdated\tName")
-	fmt.Fprintln(w, "--\t--------\t-------\t----")
+	if _, err := fmt.Fprintln(w, "ID\tMessages\tUpdated\tName"); err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
+	if _, err := fmt.Fprintln(w, "--\t--------\t-------\t----"); err != nil {
+		return fmt.Errorf("failed to write separator: %w", err)
+	}
 
 	for _, c := range conversations {
 		// Parse and format date
 		updatedAt := c.UpdatedAt[:10] // Just the date part
 		name := truncate(c.Name, 80)
 
-		fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", c.ID, c.MessageCount, updatedAt, name)
+		if _, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", c.ID, c.MessageCount, updatedAt, name); err != nil {
+			return fmt.Errorf("failed to write row: %w", err)
+		}
 	}
 
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush output: %w", err)
+	}
 
 	if !quiet {
 		fmt.Printf("\nShowing %d of %d total conversations", len(conversations), total)

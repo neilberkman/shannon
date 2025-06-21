@@ -11,6 +11,7 @@ import (
 	"github.com/user/shannon/cmd/stats"
 	"github.com/user/shannon/cmd/tui"
 	"github.com/user/shannon/cmd/view"
+	"github.com/user/shannon/cmd/xargs"
 )
 
 func main() {
@@ -24,6 +25,7 @@ func main() {
 	root.RootCmd.AddCommand(export.ExportCmd)
 	root.RootCmd.AddCommand(stats.StatsCmd)
 	root.RootCmd.AddCommand(tui.TuiCmd)
+	root.RootCmd.AddCommand(xargs.XargsCmd)
 
 	// Execute
 	root.Execute()

@@ -36,7 +36,9 @@ func init() {
 	ImportCmd.Flags().IntVar(&batchSize, "batch-size", 1000, "number of messages to import at once")
 	ImportCmd.Flags().BoolVar(&force, "force", false, "force re-import of already imported files")
 
-	viper.BindPFlag("import.batch_size", ImportCmd.Flags().Lookup("batch-size"))
+	if err := viper.BindPFlag("import.batch_size", ImportCmd.Flags().Lookup("batch-size")); err != nil {
+		panic(fmt.Sprintf("failed to bind flag: %v", err))
+	}
 }
 
 func runImport(cmd *cobra.Command, args []string) error {

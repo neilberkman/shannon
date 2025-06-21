@@ -160,9 +160,10 @@ func exportConversation(engine *search.Engine, convID int64, multiple bool, quie
 		}
 
 		ext := ".md"
-		if outputFormat == "json" {
+		switch outputFormat {
+		case "json":
 			ext = ".json"
-		} else if outputFormat == "text" {
+		case "text":
 			ext = ".txt"
 		}
 

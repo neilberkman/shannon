@@ -2,13 +2,11 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/user/shannon/internal/models"
 	"github.com/user/shannon/internal/search"
 )
@@ -60,12 +58,8 @@ func newBrowseModel(engine *search.Engine) browseModel {
 
 	// Create list
 	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4"))
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4"))
+	delegate.Styles.SelectedTitle = SelectedStyle
+	delegate.Styles.SelectedDesc = SelectedStyle
 
 	l := list.New(items, delegate, 0, 0)
 	l.Title = "Browse Conversations"
@@ -121,7 +115,12 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							SortOrder: "desc",
 						}
 						results, err := m.engine.Search(opts)
-						if err == nil {
+						if err != nil {
+							// Log search error for debugging
+							fmt.Printf("Search error for query '%s': %v\n", query, err)
+							// Stay in search mode but clear input
+							m.textInput.SetValue("")
+						} else {
 							// Switch to search results view
 							return newSearchModel(m.engine, results, query), nil
 						}
@@ -139,7 +138,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				switch msg.String() {
-				case "q", "ctrl+c":
+				case "q":
 					return m, tea.Quit
 				case "/":
 					m.searching = true
@@ -148,11 +147,15 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "enter":
 					if i, ok := m.list.SelectedItem().(conversationItem); ok {
 						conv, messages, err := m.engine.GetConversation(i.conv.ID)
-						if err == nil {
+						if err != nil {
+							// Log error for debugging - this will go to debug.log
+							fmt.Printf("Error loading conversation %d: %v\n", i.conv.ID, err)
+							// Could also show a temporary error message in the UI
+						} else {
 							m.conversation = conv
 							m.messages = messages
 							m.mode = ModeConversation
-							m.viewport.SetContent(m.renderConversation())
+							m.viewport.SetContent(RenderConversation(conv, messages, m.width))
 							m.viewport.GotoTop()
 						}
 					}
@@ -185,66 +188,24 @@ func (m browseModel) View() string {
 		// Search bar
 		searchBar := ""
 		if m.searching {
-			searchBar = titleStyle.Render("Search: ") + m.textInput.View() + "\n"
+			searchBar = TitleStyle.Render("Search: ") + m.textInput.View() + "\n"
 		} else {
-			searchBar = helpStyle.Render("Press / to search") + "\n"
+			searchBar = HelpStyle.Render("Press / to search") + "\n"
 		}
 
 		// List
 		content := m.list.View()
 
 		// Help
-		help := helpStyle.Render("↑/↓: navigate • enter: view • /: search • q: quit")
+		help := HelpStyle.Render("↑/↓: navigate • enter: view • /: search • q: quit")
 
 		return searchBar + content + "\n" + help
 
 	case ModeConversation:
 		content := m.viewport.View()
-		help := helpStyle.Render("↑/↓: scroll • esc: back • q: quit")
+		help := HelpStyle.Render("↑/↓: scroll • esc: back • q: quit")
 		return content + "\n" + help
 	}
 
 	return ""
-}
-
-// renderConversation renders the full conversation view
-func (m browseModel) renderConversation() string {
-	var sb strings.Builder
-
-	// Header
-	sb.WriteString(headerStyle.Render(fmt.Sprintf("Conversation: %s", m.conversation.Name)))
-	sb.WriteString("\n")
-	sb.WriteString(dateStyle.Render(fmt.Sprintf("Messages: %d | Updated: %s", 
-		len(m.messages), 
-		m.conversation.UpdatedAt.Format("2006-01-02 15:04"))))
-	sb.WriteString("\n")
-	sb.WriteString(strings.Repeat("─", m.width))
-	sb.WriteString("\n\n")
-
-	// Messages
-	for i, msg := range m.messages {
-		// Message header
-		sender := strings.Title(msg.Sender)
-		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
-		
-		if msg.Sender == "human" {
-			sb.WriteString(conversationStyle.Bold(true).Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
-		} else {
-			sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#04B5FF")).
-				Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
-		}
-		sb.WriteString("\n")
-		
-		// Message text
-		text := strings.TrimSpace(msg.Text)
-		sb.WriteString(snippetStyle.Render(text))
-		
-		if i < len(m.messages)-1 {
-			sb.WriteString("\n\n")
-			sb.WriteString(strings.Repeat("─", m.width/2))
-			sb.WriteString("\n\n")
-		}
-	}
-
-	return sb.String()
 }

@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/user/shannon/cmd/export"
-	"github.com/user/shannon/cmd/root"
 )
 
 // XargsCmd represents the xargs command
@@ -61,31 +59,38 @@ func runXargs(cmd *cobra.Command, args []string) error {
 	subcommand := args[0]
 	subargs := args[1:]
 
+	// Get the root command to access all subcommands
+	rootCmd := cmd.Root()
+
+	// Find the target subcommand using Cobra's Find
+	targetCmd, _, err := rootCmd.Find([]string{subcommand})
+	if err != nil {
+		return fmt.Errorf("command '%s' not found: %w", subcommand, err)
+	}
+
+	// Verify this isn't the xargs command itself (prevent infinite recursion)
+	if targetCmd == cmd {
+		return fmt.Errorf("cannot use xargs with itself")
+	}
+
 	// Execute the command for each ID
 	for _, id := range ids {
-		// Build command args
-		cmdArgs := append([]string{subcommand}, append(subargs, id)...)
+		// Create a copy of the target command to avoid state issues
+		cmdCopy := &cobra.Command{}
+		*cmdCopy = *targetCmd
 		
-		// Create a new root command instance to avoid state issues
-		rootCmd := root.NewRootCmd()
+		// Build the complete argument list: subcommand flags + ID
+		cmdArgs := append(subargs, id)
+		cmdCopy.SetArgs(cmdArgs)
 		
-		// Add subcommands (you'd need to export this setup from main.go)
-		// For now, let's handle the most common cases directly
-		switch subcommand {
-		case "export":
-			// Special handling for export since it's the most common
-			exportArgs := append(subargs, id)
-			exportCmd := &cobra.Command{}
-			*exportCmd = *export.ExportCmd
-			exportCmd.SetArgs(exportArgs)
-			if err := exportCmd.Execute(); err != nil {
-				return fmt.Errorf("failed to export conversation %s: %w", id, err)
-			}
-		default:
-			// For other commands, we'd need to set them up
-			// This is a limitation of the current architecture
-			fmt.Fprintf(os.Stderr, "xargs: command '%s' not yet supported\n", subcommand)
-			return fmt.Errorf("unsupported command: %s", subcommand)
+		// Reset flags to avoid state pollution between executions
+		if err := cmdCopy.Flags().Parse([]string{}); err != nil {
+			return fmt.Errorf("failed to reset flags for '%s': %w", subcommand, err)
+		}
+		
+		// Execute the command
+		if err := cmdCopy.Execute(); err != nil {
+			return fmt.Errorf("failed to execute '%s' for conversation %s: %w", subcommand, id, err)
 		}
 	}
 

@@ -50,7 +50,11 @@ func runRecent(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Calculate date threshold
 	threshold := time.Now().AddDate(0, 0, -days)
@@ -68,7 +72,11 @@ func runRecent(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to query conversations: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	// Collect results
 	type conversation struct {

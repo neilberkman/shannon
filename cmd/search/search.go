@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"github.com/user/shannon/internal/config"
 	"github.com/user/shannon/internal/db"
 	"github.com/user/shannon/internal/models"
@@ -152,11 +154,19 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 
 	// Header
 	if showSnippets {
-		fmt.Fprintln(w, "ID\tDate\tConversation\tSender\tSnippet")
-		fmt.Fprintln(w, "--\t----\t------------\t------\t-------")
+		if _, err := fmt.Fprintln(w, "ID\tDate\tConversation\tSender\tSnippet"); err != nil {
+			return fmt.Errorf("failed to write header: %w", err)
+		}
+		if _, err := fmt.Fprintln(w, "--\t----\t------------\t------\t-------"); err != nil {
+			return fmt.Errorf("failed to write separator: %w", err)
+		}
 	} else {
-		fmt.Fprintln(w, "ID\tDate\tConversation\tSender\tMessage ID")
-		fmt.Fprintln(w, "--\t----\t------------\t------\t----------")
+		if _, err := fmt.Fprintln(w, "ID\tDate\tConversation\tSender\tMessage ID"); err != nil {
+			return fmt.Errorf("failed to write header: %w", err)
+		}
+		if _, err := fmt.Fprintln(w, "--\t----\t------------\t------\t----------"); err != nil {
+			return fmt.Errorf("failed to write separator: %w", err)
+		}
 	}
 
 	// Results
@@ -167,13 +177,19 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 		if showSnippets {
 			snippet := strings.ReplaceAll(r.Snippet, "\n", " ")
 			snippet = truncate(snippet, 60)
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, snippet)
+			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, snippet); err != nil {
+				return fmt.Errorf("failed to write result row: %w", err)
+			}
 		} else {
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, r.MessageUUID[:8])
+			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, r.MessageUUID[:8]); err != nil {
+				return fmt.Errorf("failed to write result row: %w", err)
+			}
 		}
 	}
 
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush output: %w", err)
+	}
 
 	if !quiet {
 		fmt.Printf("\nFound %d results", len(results))
@@ -316,7 +332,8 @@ func showMessageContext(database *db.DB, result *models.SearchResult, contextLin
 		}
 
 		timestamp := msg.CreatedAt[:16] // Just date and time
-		sender := strings.Title(msg.Sender)
+		caser := cases.Title(language.English)
+		sender := caser.String(msg.Sender)
 
 		// Truncate message for display
 		text := strings.ReplaceAll(msg.Text, "\n", " ")

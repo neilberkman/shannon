@@ -132,7 +132,13 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 		return fmt.Errorf("invalid updated_at: %w", err)
 	}
 
-	// Insert conversation
+	// Check if conversation already exists and get existing message UUIDs
+	existingMessages, err := i.getExistingMessageUUIDs(tx, conv.UUID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing messages: %w", err)
+	}
+
+	// Insert or update conversation
 	result, err := tx.Exec(`
 		INSERT OR REPLACE INTO conversations (uuid, name, created_at, updated_at, message_count)
 		VALUES (?, ?, ?, ?, ?)
@@ -147,25 +153,95 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 		return fmt.Errorf("failed to get conversation ID: %w", err)
 	}
 
-	stats.ConversationsImported++
-
-	// Detect branches using the new branch detector
-	detector := NewBranchDetector(conv.ChatMessages)
-	branches := detector.DetectBranches()
-	stats.BranchesDetected += len(branches) - 1 // Subtract 1 for main branch
-
-	// Create main branch
-	mainBranchID, err := i.createBranch(tx, convID, "main", nil)
-	if err != nil {
-		return fmt.Errorf("failed to create main branch: %w", err)
+	// Only increment if it's a new conversation
+	if len(existingMessages) == 0 {
+		stats.ConversationsImported++
 	}
 
-	// Import messages
+	// Get or create main branch
+	mainBranchID, err := i.getOrCreateMainBranch(tx, convID)
+	if err != nil {
+		return fmt.Errorf("failed to get or create main branch: %w", err)
+	}
+
+	// Import only new messages using tree diff approach
+	newMessagesCount, branchesDetected, err := i.importNewMessages(tx, convID, mainBranchID, conv.ChatMessages, existingMessages, stats)
+	if err != nil {
+		return fmt.Errorf("failed to import messages: %w", err)
+	}
+
+	stats.MessagesImported += newMessagesCount
+	stats.BranchesDetected += branchesDetected
+
+	return nil
+}
+
+// getExistingMessageUUIDs returns a map of existing message UUIDs for a conversation
+func (i *Importer) getExistingMessageUUIDs(tx *sql.Tx, convUUID string) (map[string]struct{}, error) {
+	query := `
+		SELECT m.uuid 
+		FROM messages m
+		JOIN conversations c ON m.conversation_id = c.id
+		WHERE c.uuid = ?
+	`
+	
+	rows, err := tx.Query(query, convUUID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	existing := make(map[string]struct{})
+	for rows.Next() {
+		var uuid string
+		if err := rows.Scan(&uuid); err != nil {
+			return nil, err
+		}
+		existing[uuid] = struct{}{}
+	}
+
+	return existing, rows.Err()
+}
+
+// getOrCreateMainBranch gets existing main branch or creates it
+func (i *Importer) getOrCreateMainBranch(tx *sql.Tx, convID int64) (int64, error) {
+	// Try to get existing main branch
+	var branchID int64
+	err := tx.QueryRow(`
+		SELECT id FROM branches WHERE conversation_id = ? AND name = 'main'
+	`, convID).Scan(&branchID)
+	
+	if err == sql.ErrNoRows {
+		// Create main branch
+		return i.createBranch(tx, convID, "main", nil)
+	} else if err != nil {
+		return 0, err
+	}
+	
+	return branchID, nil
+}
+
+// importNewMessages imports only new messages, detecting branches based on parent relationships
+func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, messages []models.ClaudeChatMessage, existingMessages map[string]struct{}, stats *models.ImportStats) (int, int, error) {
 	messageIDMap := make(map[string]int64)
-	for idx, msg := range conv.ChatMessages {
+	newMessagesCount := 0
+	branchesDetected := 0
+
+	// Load existing message ID mappings
+	if err := i.loadExistingMessageIDs(tx, convID, messageIDMap); err != nil {
+		return 0, 0, err
+	}
+
+	for idx, msg := range messages {
+		// Skip if message already exists
+		if _, exists := existingMessages[msg.UUID]; exists {
+			continue
+		}
+
+		// This is a new message
 		msgCreatedAt, err := ParseTime(msg.CreatedAt)
 		if err != nil {
-			return fmt.Errorf("invalid message created_at: %w", err)
+			return newMessagesCount, branchesDetected, fmt.Errorf("invalid message created_at: %w", err)
 		}
 
 		// Get message text
@@ -179,11 +255,26 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 			}
 		}
 
-		// Determine parent ID
+		// Determine parent ID and branch logic
 		var parentID *int64
+		branchID := mainBranchID
+
 		if msg.ParentID != nil && *msg.ParentID != "" {
 			if pid, ok := messageIDMap[*msg.ParentID]; ok {
 				parentID = &pid
+				
+				// Check if parent is in main branch - if not, this might be a new branch
+				if isNewBranch, err := i.detectNewBranch(tx, pid, mainBranchID); err != nil {
+					return newMessagesCount, branchesDetected, err
+				} else if isNewBranch {
+					// Create new branch
+					branchName := fmt.Sprintf("branch-%d", time.Now().Unix())
+					branchID, err = i.createBranch(tx, convID, branchName, &mainBranchID)
+					if err != nil {
+						return newMessagesCount, branchesDetected, err
+					}
+					branchesDetected++
+				}
 			}
 		}
 
@@ -191,18 +282,57 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 		result, err := tx.Exec(`
 			INSERT INTO messages (uuid, conversation_id, sender, text, created_at, parent_id, branch_id, sequence)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, msg.UUID, convID, msg.Sender, text, msgCreatedAt, parentID, mainBranchID, idx)
+		`, msg.UUID, convID, msg.Sender, text, msgCreatedAt, parentID, branchID, idx)
 
 		if err != nil {
-			return fmt.Errorf("failed to insert message: %w", err)
+			return newMessagesCount, branchesDetected, fmt.Errorf("failed to insert message: %w", err)
 		}
 
 		msgID, _ := result.LastInsertId()
 		messageIDMap[msg.UUID] = msgID
-		stats.MessagesImported++
+		newMessagesCount++
 	}
 
-	return nil
+	return newMessagesCount, branchesDetected, nil
+}
+
+// loadExistingMessageIDs loads UUID to ID mappings for existing messages
+func (i *Importer) loadExistingMessageIDs(tx *sql.Tx, convID int64, messageIDMap map[string]int64) error {
+	rows, err := tx.Query(`
+		SELECT id, uuid FROM messages WHERE conversation_id = ?
+	`, convID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		var uuid string
+		if err := rows.Scan(&id, &uuid); err != nil {
+			return err
+		}
+		messageIDMap[uuid] = id
+	}
+
+	return rows.Err()
+}
+
+// detectNewBranch determines if a new message creates a branch
+func (i *Importer) detectNewBranch(tx *sql.Tx, parentID, mainBranchID int64) (bool, error) {
+	// Check if parent already has children in main branch
+	var childCount int
+	err := tx.QueryRow(`
+		SELECT COUNT(*) FROM messages 
+		WHERE parent_id = ? AND branch_id = ?
+	`, parentID, mainBranchID).Scan(&childCount)
+	
+	if err != nil {
+		return false, err
+	}
+
+	// If parent already has children, this creates a new branch
+	return childCount > 0, nil
 }
 
 func (i *Importer) createBranch(tx *sql.Tx, convID int64, name string, parentBranchID *int64) (int64, error) {

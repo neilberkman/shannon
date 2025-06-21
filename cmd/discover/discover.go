@@ -64,12 +64,14 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid duration '%s': %w", recentDuration, err)
 		}
 		exports, err = scanner.GetRecentExports(duration)
+		if err != nil {
+			return fmt.Errorf("scan failed: %w", err)
+		}
 	} else {
 		exports, err = scanner.ScanForExports()
-	}
-	
-	if err != nil {
-		return fmt.Errorf("scan failed: %w", err)
+		if err != nil {
+			return fmt.Errorf("scan failed: %w", err)
+		}
 	}
 	
 	// Filter exports based on flags

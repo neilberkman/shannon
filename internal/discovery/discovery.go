@@ -162,7 +162,11 @@ func (s *Scanner) validateAndPreview(path string) (bool, string, *ExportPreview)
 	if err != nil {
 		return false, fmt.Sprintf("Cannot open file: %v", err), nil
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", path, err)
+		}
+	}()
 	
 	// Try to parse as JSON array of conversations
 	var conversations []models.ClaudeConversation

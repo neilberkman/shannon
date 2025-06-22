@@ -48,7 +48,7 @@ func GetSharedRenderer() *MarkdownRenderer {
 func NewMarkdownRenderer(width int) (*MarkdownRenderer, error) {
 	// Store original width for the struct
 	originalWidth := width
-	
+
 	// For glamour, use a reasonable minimum but preserve original for the struct
 	glamourWidth := width
 	if glamourWidth <= 0 {

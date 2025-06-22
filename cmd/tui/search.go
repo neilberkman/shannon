@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/neilberkman/shannon/internal/models"
@@ -50,7 +51,6 @@ type Mode int
 
 const (
 	ModeList Mode = iota
-	ModeDetail
 	ModeConversation
 )
 
@@ -59,6 +59,7 @@ type searchModel struct {
 	engine       *search.Engine
 	results      []*models.SearchResult
 	list         list.Model
+	textInput    textinput.Model
 	viewport     viewport.Model
 	mode         Mode
 	selected     int
@@ -67,6 +68,10 @@ type searchModel struct {
 	query        string
 	conversation *models.Conversation
 	messages     []*models.Message
+	findQuery    string
+	findActive   bool
+	findMatches  []int // line numbers that match the find query
+	currentMatch int   // current match index
 }
 
 // newSearchModel creates a new search model
@@ -94,15 +99,22 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()
 
+	// Create text input for find
+	ti := textinput.New()
+	ti.Placeholder = "Find in conversation..."
+	ti.CharLimit = 100
+	ti.Width = 50
+
 	return searchModel{
-		engine:   engine,
-		results:  results,
-		list:     l,
-		viewport: viewport.New(width, height-3),
-		mode:     ModeList,
-		width:    width,
-		height:   height,
-		query:    query,
+		engine:    engine,
+		results:   results,
+		list:      l,
+		textInput: ti,
+		viewport:  viewport.New(width, height-3),
+		mode:      ModeList,
+		width:     width,
+		height:    height,
+		query:     query,
 	}
 }
 
@@ -113,6 +125,7 @@ func (m searchModel) Init() tea.Cmd {
 
 // Update handles messages
 func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -133,15 +146,8 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q":
 				return m, tea.Quit
-			case "enter":
-				if i, ok := m.list.SelectedItem().(searchItem); ok {
-					m.selected = m.list.Index()
-					m.mode = ModeDetail
-					m.viewport.SetContent(m.renderDetail(i.result))
-					m.viewport.GotoTop()
-				}
-			case "v":
-				// View full conversation
+			case "enter", "v":
+				// Both enter and v do the SAME thing - go to conversation view
 				if i, ok := m.list.SelectedItem().(searchItem); ok {
 					conv, messages, err := m.engine.GetConversation(i.result.ConversationID)
 					if err != nil {
@@ -151,6 +157,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.conversation = conv
 						m.messages = messages
 						m.mode = ModeConversation
+						m.selected = m.list.Index()
 
 						// Set content and go to top
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
@@ -199,27 +206,55 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Let other keys fall through to component
 			}
 
-		case ModeDetail, ModeConversation:
-			switch msg.String() {
-			case "q", "esc":
-				m.mode = ModeList
-			case "v":
-				if m.mode == ModeDetail && m.selected < len(m.results) {
-					// Switch to conversation view
-					result := m.results[m.selected]
-					conv, messages, err := m.engine.GetConversation(result.ConversationID)
-					if err != nil {
-						// Log error for debugging
-						fmt.Printf("Error loading conversation %d: %v\n", result.ConversationID, err)
-					} else {
-						m.conversation = conv
-						m.messages = messages
-						m.mode = ModeConversation
-
-						// Set content and go to top
-						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
-						m.viewport.GotoTop()
+		case ModeConversation:
+			if m.findActive {
+				switch msg.String() {
+				case "enter":
+					if m.textInput.Value() != "" {
+						m.findQuery = m.textInput.Value()
+						m.findMatches = m.findInConversation(m.findQuery)
+						m.currentMatch = 0
+						if len(m.findMatches) > 0 {
+							m.viewport.SetYOffset(m.findMatches[0])
+						}
 					}
+					m.findActive = false
+					m.textInput.Blur()
+				case "esc":
+					m.findActive = false
+					m.findQuery = ""
+					m.findMatches = nil
+					m.textInput.SetValue("")
+					m.textInput.Blur()
+				default:
+					ti, cmd := m.textInput.Update(msg)
+					m.textInput = ti
+					cmds = append(cmds, cmd)
+				}
+			} else {
+				switch msg.String() {
+				case "q", "esc":
+					m.mode = ModeList
+				case "/", "f":
+					m.findActive = true
+					m.textInput.SetValue("")
+					m.textInput.Placeholder = "Find in conversation..."
+					m.textInput.Focus()
+					cmds = append(cmds, textinput.Blink)
+				case "n":
+					if len(m.findMatches) > 0 {
+						m.currentMatch = (m.currentMatch + 1) % len(m.findMatches)
+						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
+					}
+				case "N":
+					if len(m.findMatches) > 0 {
+						m.currentMatch = (m.currentMatch - 1 + len(m.findMatches)) % len(m.findMatches)
+						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
+					}
+				default:
+					vp, cmd := m.viewport.Update(msg)
+					m.viewport = vp
+					cmds = append(cmds, cmd)
 				}
 			}
 		}
@@ -230,11 +265,12 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case ModeList:
 		m.list, cmd = m.list.Update(msg)
-	case ModeDetail, ModeConversation:
+	case ModeConversation:
 		m.viewport, cmd = m.viewport.Update(msg)
 	}
-
-	return m, cmd
+	
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
 // View renders the view
@@ -244,7 +280,7 @@ func (m searchModel) View() string {
 	switch m.mode {
 	case ModeList:
 		content = m.list.View()
-	case ModeDetail, ModeConversation:
+	case ModeConversation:
 		content = m.viewport.View()
 	}
 
@@ -252,11 +288,29 @@ func (m searchModel) View() string {
 	var help string
 	switch m.mode {
 	case ModeList:
-		help = HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: details • v: view • o: open in claude.ai • q: quit")
-	case ModeDetail:
-		help = HelpStyle.Render("↑/↓: scroll • v: view full conversation • esc: back • q: quit")
+		help = HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: view • o: open in claude.ai • q: quit")
 	case ModeConversation:
-		help = HelpStyle.Render("↑/↓: scroll • esc: back • q: quit")
+		if m.findActive {
+			help = HelpStyle.Render("enter: search • esc: cancel")
+		} else {
+			help = HelpStyle.Render("↑/↓: scroll • /f: find • n/N: next/prev match • esc: back • q: quit")
+		}
+	}
+
+	// For conversation mode, add find interface
+	if m.mode == ModeConversation {
+		var findBar string
+		if m.findActive {
+			findBar = TitleStyle.Render("Find: ") + m.textInput.View() + "\n"
+		} else if m.findQuery != "" {
+			if len(m.findMatches) > 0 {
+				findBar = HelpStyle.Render(fmt.Sprintf("Found %d matches for '%s' • Match %d/%d • n: next • N: prev", 
+					len(m.findMatches), m.findQuery, m.currentMatch+1, len(m.findMatches))) + "\n"
+			} else {
+				findBar = HelpStyle.Render(fmt.Sprintf("No matches found for '%s' • Press / to search again", m.findQuery)) + "\n"
+			}
+		}
+		return findBar + content + "\n" + help
 	}
 
 	return content + "\n" + help
@@ -356,6 +410,28 @@ func (m searchModel) getMessageContext(result *models.SearchResult, contextLines
 	}
 
 	return messages[start:end], nil
+}
+
+// findInConversation searches for a query in the conversation and returns line numbers of matches
+func (m searchModel) findInConversation(query string) []int {
+	if m.conversation == nil || m.messages == nil || query == "" {
+		return nil
+	}
+	
+	// Generate the conversation text to search through
+	content := RenderConversation(m.conversation, m.messages, m.width)
+	lines := strings.Split(content, "\n")
+	
+	var matches []int
+	queryLower := strings.ToLower(query)
+	
+	for i, line := range lines {
+		if strings.Contains(strings.ToLower(line), queryLower) {
+			matches = append(matches, i)
+		}
+	}
+	
+	return matches
 }
 
 // openURL opens a URL in the default browser

@@ -152,14 +152,9 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.messages = messages
 						m.mode = ModeConversation
 
-						// *** FIX: Update the viewport and get its command ***
-						var cmd tea.Cmd
+						// Set content and go to top
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
-						m.viewport, cmd = m.viewport.Update(msg) // This ensures the viewport processes the new content
 						m.viewport.GotoTop()
-
-						// *** FIX: Return the command to trigger a redraw ***
-						return m, cmd
 					}
 				}
 			case "o":
@@ -221,14 +216,9 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.messages = messages
 						m.mode = ModeConversation
 
-						// *** FIX: Update the viewport and get its command ***
-						var cmd tea.Cmd
+						// Set content and go to top
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
-						m.viewport, cmd = m.viewport.Update(msg) // This ensures the viewport processes the new content
 						m.viewport.GotoTop()
-
-						// *** FIX: Return the command to trigger a redraw ***
-						return m, cmd
 					}
 				}
 			}

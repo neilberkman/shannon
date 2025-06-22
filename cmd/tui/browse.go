@@ -178,14 +178,9 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.messages = messages
 							m.mode = ModeConversation
 
-							// Update the viewport and get its command to trigger proper rendering
+							// Set content and go to top
 							m.viewport.SetContent(RenderConversation(conv, messages, m.width))
-							vp, cmd := m.viewport.Update(msg)
-							m.viewport = vp
 							m.viewport.GotoTop()
-
-							// Return early to trigger immediate re-render
-							return m, cmd
 						}
 					}
 				case "o":

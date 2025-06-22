@@ -42,3 +42,8 @@ test_data.json
 # Local configuration
 .env
 .env.local
+
+# Build artifacts
+dist/
+/shannon
+/shannon-test

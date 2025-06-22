@@ -1,43 +1,47 @@
 # Shannon
 
-A powerful CLI tool for searching through your exported Claude conversation history.
+A powerful CLI tool for searching through your exported AI conversation history.
 
-Named after Claude Shannon, the father of information theory, this tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities.
+Named after Claude Shannon, the father of information theory, this tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities, rich markdown rendering, and both CLI and TUI interfaces.
 
 > **Note**: This is an unofficial tool not affiliated with Anthropic.
 
 ## Features
 
-- 🔍 **Full-text search** with SQLite FTS5
+- 🔍 **Full-text search** with SQLite FTS5 and dual tokenizers (porter + unicode61)
+- 📝 **Rich markdown rendering** with syntax highlighting and formatting
 - 🌳 **Conversation branching** support (when available in exports)
-- 💻 **Cross-platform** - Works on macOS, Linux, and Windows
+- 💻 **Cross-platform** - Works on macOS, Linux, and Windows (6 architectures)
 - 🚀 **Fast** - Single Go binary with embedded database
 - 🎨 **Multiple interfaces** - CLI for scripting, TUI for interactive use
-- 🎯 **Interactive TUI** - Browse and search with keyboard navigation
+- 🔄 **Auto-discovery** - Automatically finds Claude export files
+- 📤 **Export formats** - JSON, CSV, and Markdown output
+- 🔗 **Pipeline-friendly** - Designed for Unix pipeline integration
+- 📊 **Statistics** - Detailed database and conversation analytics
 
 ## Installation
 
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install yourusername/shannon/shannon
+brew install neilberkman/shannon/shannon
 ```
 
 ### Install Script (macOS/Linux)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/shannon/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/neilberkman/shannon/main/install.sh | bash
 ```
 
 ### From Source
 
 ```bash
-go install github.com/yourusername/shannon@latest
+go install github.com/neilberkman/shannon@latest
 ```
 
 ### Pre-built Binaries
 
-Download the latest release for your platform from the [releases page](https://github.com/yourusername/shannon/releases).
+Download the latest release for your platform from the [releases page](https://github.com/neilberkman/shannon/releases).
 
 - **macOS**: `shannon_x.x.x_darwin_amd64.tar.gz` (Intel) or `shannon_x.x.x_darwin_arm64.tar.gz` (Apple Silicon)
 - **Linux**: `shannon_x.x.x_linux_amd64.tar.gz` or `shannon_x.x.x_linux_arm64.tar.gz`
@@ -46,17 +50,21 @@ Download the latest release for your platform from the [releases page](https://g
 ### Scoop (Windows)
 
 ```bash
-scoop bucket add shannon https://github.com/yourusername/scoop-shannon
+scoop bucket add shannon https://github.com/neilberkman/scoop-shannon
 scoop install shannon
 ```
 
 ## Usage
 
-### Import Claude Export
+### Discover and Import Claude Exports
 
-First, export your Claude conversations from the Claude.ai interface, then:
+First, find your Claude export files:
 
 ```bash
+# Auto-discover export files
+shannon discover
+
+# Import discovered export
 shannon import path/to/conversations.json
 ```
 
@@ -80,6 +88,9 @@ shannon search "function" --conversation 123
 
 # Show context around search results
 shannon search "error" --context --context-lines 3
+
+# Export search results
+shannon search "python" --format json --quiet
 ```
 
 ### List Conversations
@@ -111,24 +122,19 @@ shannon recent --format id | xargs -I {} shannon export {}
 ### Export Conversations
 
 ```bash
-# Export single conversation (stdout by default)
+# Export single conversation to stdout
 shannon export 123
 
-# Export as JSON
+# Export as JSON or CSV
 shannon export 123 --format json
+shannon export 123 --format csv --output export.csv
 
-# Export to file
-shannon export 123 -o conversation.md
-
-# Export multiple conversations to directory
-shannon export 123 456 789 -d exports/
+# Export multiple conversations
+shannon export 123 456 789
 
 # Pipe to other tools
 shannon export 123 | less
 shannon export 123 --format json | jq '.messages[] | select(.sender == "human")'
-
-# Read IDs from stdin
-shannon search "bug" --format json | jq -r '.results[].conversation_id' | shannon export -
 ```
 
 ### Edit Conversations
@@ -157,6 +163,7 @@ shannon view 123 --branches
 ### Statistics
 
 ```bash
+# Show database statistics
 shannon stats
 ```
 
@@ -198,7 +205,7 @@ TUI Keyboard Shortcuts:
 
 ## Unix Pipeline Integration
 
-ClaudeSearch is designed to work well with Unix pipelines:
+Shannon is designed to work well with Unix pipelines:
 
 ```bash
 # Export search results as JSON and process with jq
@@ -211,17 +218,17 @@ shannon search "python" --format csv | cut -d, -f1,4 | sort | uniq
 shannon list --format json | jq '.conversations[] | select(.message_count > 100)'
 
 # Quiet mode for cleaner output
-shannon search "bug" --quiet | grep -E "^\d+"
+shannon search "bug" --quiet
 
 # Export conversation and process
-shannon export 123 --quiet | grep "TODO"
+shannon export 123 | grep "TODO"
 
 # Pipeline from search to export
 shannon search "python" --format json --quiet | \
   jq -r '.results[].conversation_id' | \
   sort -u | \
   head -5 | \
-  xargs -I {} shannon export {} -o "python_{}.md"
+  xargs -I {} shannon export {}
 
 # Recent conversations pipeline
 shannon recent --format id | \
@@ -249,6 +256,7 @@ Database is stored in:
 
 - Go 1.21+
 - SQLite3 (embedded, no external dependency needed)
+- golangci-lint (for development)
 
 ### Building
 

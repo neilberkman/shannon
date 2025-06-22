@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/rendering"
 )
 
 var (
@@ -177,7 +178,13 @@ func outputTable(conversations []conversation, total int, searchTerm string, qui
 		updatedAt := c.UpdatedAt[:10] // Just the date part
 		name := truncate(c.Name, 80)
 
-		if _, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", c.ID, c.MessageCount, updatedAt, name); err != nil {
+		// Create clickable conversation ID if hyperlinks are supported
+		convIDDisplay := fmt.Sprintf("%d", c.ID)
+		if rendering.IsHyperlinksSupported() {
+			convIDDisplay = rendering.MakeHyperlinkWithID(convIDDisplay, fmt.Sprintf("shannon://view/%d", c.ID), fmt.Sprintf("conv-%d", c.ID))
+		}
+
+		if _, err := fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", convIDDisplay, c.MessageCount, updatedAt, name); err != nil {
 			return fmt.Errorf("failed to write row: %w", err)
 		}
 	}

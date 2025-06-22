@@ -95,6 +95,11 @@ func (mr *MarkdownRenderer) renderSnippet(text string, sender string) (string, e
 
 // renderFullMessage handles full message rendering with complete markdown support
 func (mr *MarkdownRenderer) renderFullMessage(text string, sender string) (string, error) {
+	// First enhance text with hyperlinks if supported
+	if IsHyperlinksSupported() {
+		text = EnhanceTextWithLinks(text)
+	}
+	
 	rendered, err := mr.termRenderer.Render(text)
 	if err != nil {
 		// If rendering fails, return formatted plain text

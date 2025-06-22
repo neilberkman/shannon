@@ -189,6 +189,13 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 		date := r.CreatedAt.Format("2006-01-02 15:04")
 		convName := truncate(r.ConversationName, 50)
 
+		// Create clickable conversation ID if hyperlinks are supported
+		convIDDisplay := fmt.Sprintf("%d", r.ConversationID)
+		if rendering.IsHyperlinksSupported() {
+			// Create a link that runs "shannon view <id>"
+			convIDDisplay = rendering.MakeHyperlinkWithID(convIDDisplay, fmt.Sprintf("shannon://view/%d", r.ConversationID), fmt.Sprintf("conv-%d", r.ConversationID))
+		}
+
 		if showSnippets {
 			snippet := r.Snippet
 			
@@ -203,14 +210,24 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 				}
 			}
 			
+			// Enhance snippet with hyperlinks
+			if rendering.IsHyperlinksSupported() {
+				snippet = rendering.EnhanceTextWithLinks(snippet)
+			}
+			
 			// Clean up for tabular display
 			snippet = strings.ReplaceAll(snippet, "\n", " ")
 			snippet = truncate(snippet, 60)
-			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, snippet); err != nil {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", convIDDisplay, date, convName, r.Sender, snippet); err != nil {
 				return fmt.Errorf("failed to write result row: %w", err)
 			}
 		} else {
-			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ConversationID, date, convName, r.Sender, r.MessageUUID[:8]); err != nil {
+			messageUUID := r.MessageUUID[:8]
+			if rendering.IsHyperlinksSupported() {
+				// Create a link to view the specific message
+				messageUUID = rendering.MakeHyperlinkWithID(messageUUID, fmt.Sprintf("shannon://message/%s", r.MessageUUID), fmt.Sprintf("msg-%s", r.MessageUUID[:8]))
+			}
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", convIDDisplay, date, convName, r.Sender, messageUUID); err != nil {
 				return fmt.Errorf("failed to write result row: %w", err)
 			}
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/neilberkman/shannon/cmd/root"
 	"github.com/neilberkman/shannon/cmd/search"
 	"github.com/neilberkman/shannon/cmd/stats"
+	"github.com/neilberkman/shannon/cmd/terminal"
 	"github.com/neilberkman/shannon/cmd/tui"
 	"github.com/neilberkman/shannon/cmd/view"
 	"github.com/neilberkman/shannon/cmd/xargs"
@@ -39,6 +40,7 @@ func main() {
 	root.RootCmd.AddCommand(edit.EditCmd)
 	root.RootCmd.AddCommand(export.ExportCmd)
 	root.RootCmd.AddCommand(stats.StatsCmd)
+	root.RootCmd.AddCommand(terminal.TerminalCmd)
 	root.RootCmd.AddCommand(tui.TuiCmd)
 	root.RootCmd.AddCommand(xargs.XargsCmd)
 

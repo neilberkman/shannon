@@ -158,6 +158,7 @@ func (m searchModel) Init() tea.Cmd {
 // Update handles messages
 func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	var skipComponentUpdate bool
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -178,6 +179,9 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q":
 				return m, tea.Quit
+			case "esc":
+				// ESC in search results goes back to browse mode
+				return m, func() tea.Msg { return switchToBrowseMsg{} }
 			case "enter", "v":
 				// Both enter and v do the SAME thing - go to conversation view
 				if i, ok := m.list.SelectedItem().(searchConversationItem); ok {
@@ -191,9 +195,16 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.mode = ModeConversation
 						m.selected = m.list.Index()
 
+						// Clear any previous find state and go to top
+						m.findQuery = ""
+						m.findMatches = nil
+						m.currentMatch = 0
+						m.findActive = false
+						
 						// Set content and go to top
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
 						m.viewport.GotoTop()
+						m.viewport.SetYOffset(0) // Force to absolute top
 					}
 				}
 			case "o":
@@ -252,20 +263,25 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.findActive = false
 					m.textInput.Blur()
+					// Handle find enter and stay in find mode processing
 				case "esc":
 					m.findActive = false
 					m.findQuery = ""
 					m.findMatches = nil
 					m.textInput.SetValue("")
 					m.textInput.Blur()
+					skipComponentUpdate = true
+					// ESC in find mode: clear find, stay in conversation - CONSUME EVENT
 				default:
 					ti, cmd := m.textInput.Update(msg)
 					m.textInput = ti
 					cmds = append(cmds, cmd)
 				}
+				// Find mode handled - skip conversation mode handlers
 			} else {
 				switch msg.String() {
 				case "q", "esc":
+					// ESC in conversation mode goes back to search results
 					m.mode = ModeList
 				case "/", "f":
 					m.findActive = true
@@ -292,13 +308,15 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update components
+	// Update components (skip if we consumed the event in find mode)
 	var cmd tea.Cmd
-	switch m.mode {
-	case ModeList:
-		m.list, cmd = m.list.Update(msg)
-	case ModeConversation:
-		m.viewport, cmd = m.viewport.Update(msg)
+	if !skipComponentUpdate {
+		switch m.mode {
+		case ModeList:
+			m.list, cmd = m.list.Update(msg)
+		case ModeConversation:
+			m.viewport, cmd = m.viewport.Update(msg)
+		}
 	}
 	
 	cmds = append(cmds, cmd)

@@ -20,30 +20,34 @@ import (
 
 // Remove duplicated styles - now using shared styles from styles.go
 
-// searchItem implements list.Item for search results
-type searchItem struct {
-	result *models.SearchResult
+// searchConversationItem implements list.Item for search result conversations
+type searchConversationItem struct {
+	conv     *models.Conversation
+	snippets []string // Sample snippets from matching messages
 }
 
-func (i searchItem) Title() string {
-	return fmt.Sprintf("%s (%s)", i.result.ConversationName, i.result.Sender)
+func (i searchConversationItem) Title() string {
+	return i.conv.Name
 }
 
-func (i searchItem) Description() string {
-	// DEBUG: Just plain text until we find the real hang
-	return i.getPlainSnippet()
-}
-
-func (i searchItem) getPlainSnippet() string {
-	snippet := strings.ReplaceAll(i.result.Snippet, "\n", " ")
-	if len(snippet) > 80 {
-		snippet = snippet[:77] + "..."
+func (i searchConversationItem) Description() string {
+	// Show snippet from matching messages + message count
+	snippet := ""
+	if len(i.snippets) > 0 {
+		snippet = i.snippets[0]
+		// Convert <mark> tags to proper highlighting
+		snippet = strings.ReplaceAll(snippet, "<mark>", "")
+		snippet = strings.ReplaceAll(snippet, "</mark>", "")
+		snippet = strings.ReplaceAll(snippet, "\n", " ")
+		if len(snippet) > 60 {
+			snippet = snippet[:57] + "..."
+		}
 	}
-	return snippet
+	return fmt.Sprintf("%d messages • %s", i.conv.MessageCount, snippet)
 }
 
-func (i searchItem) FilterValue() string {
-	return i.result.ConversationName + " " + i.result.Snippet
+func (i searchConversationItem) FilterValue() string {
+	return i.conv.Name + " " + strings.Join(i.snippets, " ")
 }
 
 // Mode represents the current view mode
@@ -56,30 +60,58 @@ const (
 
 // searchModel is the main model for search TUI
 type searchModel struct {
-	engine       *search.Engine
-	results      []*models.SearchResult
-	list         list.Model
-	textInput    textinput.Model
-	viewport     viewport.Model
-	mode         Mode
-	selected     int
-	width        int
-	height       int
-	query        string
-	conversation *models.Conversation
-	messages     []*models.Message
-	findQuery    string
-	findActive   bool
-	findMatches  []int // line numbers that match the find query
-	currentMatch int   // current match index
+	engine           *search.Engine
+	conversations    []*models.Conversation // Conversations from grouped search results
+	list             list.Model
+	textInput        textinput.Model
+	viewport         viewport.Model
+	mode             Mode
+	selected         int
+	width            int
+	height           int
+	query            string
+	conversation     *models.Conversation
+	messages         []*models.Message
+	findQuery        string
+	findActive       bool
+	findMatches      []int // line numbers that match the find query
+	currentMatch     int   // current match index
 }
 
 // newSearchModel creates a new search model
 func newSearchModel(engine *search.Engine, results []*models.SearchResult, query string) searchModel {
-	// Convert results to list items
-	items := make([]list.Item, len(results))
-	for i, r := range results {
-		items[i] = searchItem{result: r}
+	// Group search results by conversation
+	convMap := make(map[int64]*searchConversationItem)
+	
+	for _, result := range results {
+		if item, exists := convMap[result.ConversationID]; exists {
+			// Add snippet to existing conversation
+			item.snippets = append(item.snippets, result.Snippet)
+		} else {
+			// Get conversation details
+			conv, _, err := engine.GetConversation(result.ConversationID)
+			if err != nil {
+				continue // Skip if we can't get conversation details
+			}
+			
+			// Create new conversation item
+			convMap[result.ConversationID] = &searchConversationItem{
+				conv:     conv,
+				snippets: []string{result.Snippet},
+			}
+		}
+	}
+	
+	// Convert to list items and store conversations
+	items := make([]list.Item, 0, len(convMap))
+	conversations := make([]*models.Conversation, 0, len(convMap))
+	for _, item := range convMap {
+		// Limit snippets to avoid overwhelming display
+		if len(item.snippets) > 3 {
+			item.snippets = item.snippets[:3]
+		}
+		items = append(items, *item)
+		conversations = append(conversations, item.conv)
 	}
 
 	// Create list
@@ -106,15 +138,15 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 	ti.Width = 50
 
 	return searchModel{
-		engine:    engine,
-		results:   results,
-		list:      l,
-		textInput: ti,
-		viewport:  viewport.New(width, height-3),
-		mode:      ModeList,
-		width:     width,
-		height:    height,
-		query:     query,
+		engine:        engine,
+		conversations: conversations,
+		list:          l,
+		textInput:     ti,
+		viewport:      viewport.New(width, height-3),
+		mode:          ModeList,
+		width:         width,
+		height:        height,
+		query:         query,
 	}
 }
 
@@ -148,11 +180,11 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "enter", "v":
 				// Both enter and v do the SAME thing - go to conversation view
-				if i, ok := m.list.SelectedItem().(searchItem); ok {
-					conv, messages, err := m.engine.GetConversation(i.result.ConversationID)
+				if i, ok := m.list.SelectedItem().(searchConversationItem); ok {
+					conv, messages, err := m.engine.GetConversation(i.conv.ID)
 					if err != nil {
 						// Log error for debugging
-						fmt.Printf("Error loading conversation %d: %v\n", i.result.ConversationID, err)
+						fmt.Printf("Error loading conversation %d: %v\n", i.conv.ID, err)
 					} else {
 						m.conversation = conv
 						m.messages = messages
@@ -166,8 +198,8 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "o":
 				// Open conversation in claude.ai
-				if i, ok := m.list.SelectedItem().(searchItem); ok {
-					url := fmt.Sprintf("https://claude.ai/chat/%s", i.result.ConversationUUID)
+				if i, ok := m.list.SelectedItem().(searchConversationItem); ok {
+					url := fmt.Sprintf("https://claude.ai/chat/%s", i.conv.UUID)
 					openURL(url)
 				}
 			case "g":
@@ -175,13 +207,13 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.list.Select(0)
 			case "G":
 				// Jump to end
-				m.list.Select(len(m.results) - 1)
+				m.list.Select(len(m.conversations) - 1)
 			case "home":
 				// Jump to beginning
 				m.list.Select(0)
 			case "end":
 				// Jump to end
-				m.list.Select(len(m.results) - 1)
+				m.list.Select(len(m.conversations) - 1)
 			case "pgup":
 				// Page up
 				current := m.list.Index()
@@ -196,8 +228,8 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				current := m.list.Index()
 				pageSize := m.height - 5
 				newIndex := current + pageSize
-				if newIndex >= len(m.results) {
-					newIndex = len(m.results) - 1
+				if newIndex >= len(m.conversations) {
+					newIndex = len(m.conversations) - 1
 				}
 				m.list.Select(newIndex)
 			// *** FIX: Removed custom 'down'/'j' and 'up'/'k' handlers ***
@@ -281,6 +313,10 @@ func (m searchModel) View() string {
 	case ModeList:
 		content = m.list.View()
 	case ModeConversation:
+		// Use highlighted content if find is active or has matches
+		if m.findQuery != "" {
+			m.viewport.SetContent(m.renderConversationWithHighlights())
+		}
 		content = m.viewport.View()
 	}
 
@@ -432,6 +468,51 @@ func (m searchModel) findInConversation(query string) []int {
 	}
 	
 	return matches
+}
+
+// renderConversationWithHighlights renders conversation with find matches highlighted
+func (m searchModel) renderConversationWithHighlights() string {
+	if m.conversation == nil || m.messages == nil {
+		return ""
+	}
+	
+	content := RenderConversation(m.conversation, m.messages, m.width)
+	
+	// If no find query, return content as-is
+	if m.findQuery == "" {
+		return content
+	}
+	
+	// Highlight all instances of the find query
+	queryLower := strings.ToLower(m.findQuery)
+	lines := strings.Split(content, "\n")
+	
+	for i, line := range lines {
+		lineLower := strings.ToLower(line)
+		if strings.Contains(lineLower, queryLower) {
+			// Find and highlight all instances in this line
+			start := 0
+			var highlightedLine strings.Builder
+			
+			for {
+				idx := strings.Index(lineLower[start:], queryLower)
+				if idx == -1 {
+					highlightedLine.WriteString(line[start:])
+					break
+				}
+				
+				actualIdx := start + idx
+				highlightedLine.WriteString(line[start:actualIdx])
+				matchText := line[actualIdx : actualIdx+len(m.findQuery)]
+				highlightedLine.WriteString(FindHighlightStyle.Render(matchText))
+				start = actualIdx + len(m.findQuery)
+			}
+			
+			lines[i] = highlightedLine.String()
+		}
+	}
+	
+	return strings.Join(lines, "\n")
 }
 
 // openURL opens a URL in the default browser

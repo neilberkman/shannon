@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-06-22
+
+### Fixed
+- Fixed date parsing in `recent` command to properly handle ISO 8601 format from database
+- Fixed "1 days ago" pluralization issue using go-humanize library
+- Improved relative time formatting for better readability
+
 ## [0.2.1] - 2025-06-22
 
 ### Changed

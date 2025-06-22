@@ -296,7 +296,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				switch msg.String() {
 				case "q":
-					m.mode = ModeList
+					return m, tea.Quit
 				case "esc":
 					if m.findQuery != "" {
 						// Clear find results and stay in conversation (browser back button)
@@ -323,6 +323,12 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.currentMatch = (m.currentMatch - 1 + len(m.findMatches)) % len(m.findMatches)
 						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
 					}
+				case "g":
+					// Go to top of conversation
+					m.viewport.GotoTop()
+				case "G":
+					// Go to bottom of conversation
+					m.viewport.GotoBottom()
 				default:
 					vp, cmd := m.viewport.Update(msg)
 					m.viewport = vp
@@ -371,7 +377,7 @@ func (m searchModel) View() string {
 		if m.findActive {
 			help = HelpStyle.Render("enter: search • esc: cancel")
 		} else {
-			help = HelpStyle.Render("↑/↓: scroll • /f: find • n/N: next/prev match • esc: back • q: quit")
+			help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev match • esc: back • q: quit")
 		}
 	}
 

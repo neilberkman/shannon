@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -45,6 +46,10 @@ type browseModel struct {
 	height        int
 	conversation  *models.Conversation
 	messages      []*models.Message
+	findQuery     string
+	findActive    bool
+	findMatches   []int // line numbers that match the find query
+	currentMatch  int   // current match index
 }
 
 // newBrowseModel creates a new browse model
@@ -86,8 +91,10 @@ func newBrowseModel(engine *search.Engine) browseModel {
 		conversations: conversations,
 		list:          l,
 		textInput:     ti,
-		viewport:      viewport.New(0, 0),
+		viewport:      viewport.New(width, height-3),
 		mode:          ModeList,
+		width:         width,
+		height:        height,
 	}
 }
 
@@ -111,7 +118,13 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.mode {
 		case ModeList:
-			if m.searching {
+			// Check if the list is filtering before handling keys
+			if m.list.FilterState() == list.Filtering {
+				// Let the list handle filtering
+				list, cmd := m.list.Update(msg)
+				m.list = list
+				cmds = append(cmds, cmd)
+			} else if m.searching {
 				switch msg.String() {
 				case "enter":
 					// Perform search
@@ -164,8 +177,15 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.conversation = conv
 							m.messages = messages
 							m.mode = ModeConversation
+
+							// Update the viewport and get its command to trigger proper rendering
 							m.viewport.SetContent(RenderConversation(conv, messages, m.width))
+							vp, cmd := m.viewport.Update(msg)
+							m.viewport = vp
 							m.viewport.GotoTop()
+
+							// Return early to trigger immediate re-render
+							return m, cmd
 						}
 					}
 				case "o":
@@ -204,30 +224,8 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						newIndex = len(m.conversations) - 1
 					}
 					m.list.Select(newIndex)
-				case "down", "j":
-					// Half-page down for faster navigation
-					current := m.list.Index()
-					halfPage := (m.height - 5) / 2
-					if halfPage < 3 {
-						halfPage = 3
-					}
-					newIndex := current + halfPage
-					if newIndex >= len(m.conversations) {
-						newIndex = len(m.conversations) - 1
-					}
-					m.list.Select(newIndex)
-				case "up", "k":
-					// Half-page up for faster navigation
-					current := m.list.Index()
-					halfPage := (m.height - 5) / 2
-					if halfPage < 3 {
-						halfPage = 3
-					}
-					newIndex := current - halfPage
-					if newIndex < 0 {
-						newIndex = 0
-					}
-					m.list.Select(newIndex)
+				// Removed custom 'down'/'j' and 'up'/'k' handlers
+				// Let the default list navigation handle these keys for single-item movement.
 				default:
 					list, cmd := m.list.Update(msg)
 					m.list = list
@@ -236,13 +234,55 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case ModeConversation:
-			switch msg.String() {
-			case "q", "esc":
-				m.mode = ModeList
-			default:
-				vp, cmd := m.viewport.Update(msg)
-				m.viewport = vp
-				cmds = append(cmds, cmd)
+			if m.findActive {
+				switch msg.String() {
+				case "enter":
+					if m.textInput.Value() != "" {
+						m.findQuery = m.textInput.Value()
+						m.findMatches = m.findInConversation(m.findQuery)
+						m.currentMatch = 0
+						if len(m.findMatches) > 0 {
+							m.viewport.SetYOffset(m.findMatches[0])
+						}
+					}
+					m.findActive = false
+					m.textInput.Blur()
+				case "esc":
+					m.findActive = false
+					m.findQuery = ""
+					m.findMatches = nil
+					m.textInput.SetValue("")
+					m.textInput.Blur()
+				default:
+					ti, cmd := m.textInput.Update(msg)
+					m.textInput = ti
+					cmds = append(cmds, cmd)
+				}
+			} else {
+				switch msg.String() {
+				case "q", "esc":
+					m.mode = ModeList
+				case "/", "f":
+					m.findActive = true
+					m.textInput.SetValue("")
+					m.textInput.Placeholder = "Find in conversation..."
+					m.textInput.Focus()
+					cmds = append(cmds, textinput.Blink)
+				case "n":
+					if len(m.findMatches) > 0 {
+						m.currentMatch = (m.currentMatch + 1) % len(m.findMatches)
+						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
+					}
+				case "N":
+					if len(m.findMatches) > 0 {
+						m.currentMatch = (m.currentMatch - 1 + len(m.findMatches)) % len(m.findMatches)
+						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
+					}
+				default:
+					vp, cmd := m.viewport.Update(msg)
+					m.viewport = vp
+					cmds = append(cmds, cmd)
+				}
 			}
 		}
 	}
@@ -272,10 +312,52 @@ func (m browseModel) View() string {
 
 	case ModeConversation:
 		content := m.viewport.View()
-		help := HelpStyle.Render("↑/↓: scroll • esc: back • q: quit")
-		return content + "\n" + help
+
+		// Find interface
+		var findBar string
+		if m.findActive {
+			findBar = TitleStyle.Render("Find: ") + m.textInput.View() + "\n"
+		} else if m.findQuery != "" {
+			if len(m.findMatches) > 0 {
+				findBar = HelpStyle.Render(fmt.Sprintf("Found %d matches for '%s' • Match %d/%d • n: next • N: prev",
+					len(m.findMatches), m.findQuery, m.currentMatch+1, len(m.findMatches))) + "\n"
+			} else {
+				findBar = HelpStyle.Render(fmt.Sprintf("No matches found for '%s' • Press / to search again", m.findQuery)) + "\n"
+			}
+		}
+
+		// Help
+		var help string
+		if m.findActive {
+			help = HelpStyle.Render("enter: search • esc: cancel")
+		} else {
+			help = HelpStyle.Render("↑/↓: scroll • /f: find • n/N: next/prev match • esc: back • q: quit")
+		}
+
+		return findBar + content + "\n" + help
 	}
 
 	return ""
 }
 
+// findInConversation searches for a query in the conversation and returns line numbers of matches
+func (m browseModel) findInConversation(query string) []int {
+	if m.conversation == nil || m.messages == nil || query == "" {
+		return nil
+	}
+
+	// Generate the conversation text to search through
+	content := RenderConversation(m.conversation, m.messages, m.width)
+	lines := strings.Split(content, "\n")
+
+	var matches []int
+	queryLower := strings.ToLower(query)
+
+	for i, line := range lines {
+		if strings.Contains(strings.ToLower(line), queryLower) {
+			matches = append(matches, i)
+		}
+	}
+
+	return matches
+}

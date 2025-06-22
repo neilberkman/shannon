@@ -98,8 +98,10 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 		engine:   engine,
 		results:  results,
 		list:     l,
-		viewport: viewport.New(0, 0),
+		viewport: viewport.New(width, height-3),
 		mode:     ModeList,
+		width:    width,
+		height:   height,
 		query:    query,
 	}
 }
@@ -122,6 +124,12 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.mode {
 		case ModeList:
+			// *** FIX: Check if the list is filtering before handling keys ***
+			// This prevents your custom navigation from overriding list filtering input
+			if m.list.FilterState() == list.Filtering {
+				break // Let the list handle the key press
+			}
+
 			switch msg.String() {
 			case "q":
 				return m, tea.Quit
@@ -143,8 +151,15 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.conversation = conv
 						m.messages = messages
 						m.mode = ModeConversation
+
+						// *** FIX: Update the viewport and get its command ***
+						var cmd tea.Cmd
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
+						m.viewport, cmd = m.viewport.Update(msg) // This ensures the viewport processes the new content
 						m.viewport.GotoTop()
+
+						// *** FIX: Return the command to trigger a redraw ***
+						return m, cmd
 					}
 				}
 			case "o":
@@ -163,7 +178,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Jump to beginning
 				m.list.Select(0)
 			case "end":
-				// Jump to end  
+				// Jump to end
 				m.list.Select(len(m.results) - 1)
 			case "pgup":
 				// Page up
@@ -183,30 +198,8 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					newIndex = len(m.results) - 1
 				}
 				m.list.Select(newIndex)
-			case "down", "j":
-				// Half-page down for faster navigation
-				current := m.list.Index()
-				halfPage := (m.height - 5) / 2
-				if halfPage < 3 {
-					halfPage = 3
-				}
-				newIndex := current + halfPage
-				if newIndex >= len(m.results) {
-					newIndex = len(m.results) - 1
-				}
-				m.list.Select(newIndex)
-			case "up", "k":
-				// Half-page up for faster navigation
-				current := m.list.Index()
-				halfPage := (m.height - 5) / 2
-				if halfPage < 3 {
-					halfPage = 3
-				}
-				newIndex := current - halfPage
-				if newIndex < 0 {
-					newIndex = 0
-				}
-				m.list.Select(newIndex)
+			// *** FIX: Removed custom 'down'/'j' and 'up'/'k' handlers ***
+			// Let the default list navigation handle these keys for single-item movement.
 			default:
 				// Let other keys fall through to component
 			}
@@ -227,8 +220,15 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.conversation = conv
 						m.messages = messages
 						m.mode = ModeConversation
+
+						// *** FIX: Update the viewport and get its command ***
+						var cmd tea.Cmd
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
+						m.viewport, cmd = m.viewport.Update(msg) // This ensures the viewport processes the new content
 						m.viewport.GotoTop()
+
+						// *** FIX: Return the command to trigger a redraw ***
+						return m, cmd
 					}
 				}
 			}

@@ -3,6 +3,8 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -27,7 +29,7 @@ func (i searchItem) Title() string {
 }
 
 func (i searchItem) Description() string {
-	// Use plain text for performance 
+	// DEBUG: Just plain text until we find the real hang
 	return i.getPlainSnippet()
 }
 
@@ -145,8 +147,68 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.viewport.GotoTop()
 					}
 				}
+			case "o":
+				// Open conversation in claude.ai
+				if i, ok := m.list.SelectedItem().(searchItem); ok {
+					url := fmt.Sprintf("https://claude.ai/chat/%s", i.result.ConversationUUID)
+					openURL(url)
+				}
+			case "g":
+				// Jump to beginning
+				m.list.Select(0)
+			case "G":
+				// Jump to end
+				m.list.Select(len(m.results) - 1)
+			case "home":
+				// Jump to beginning
+				m.list.Select(0)
+			case "end":
+				// Jump to end  
+				m.list.Select(len(m.results) - 1)
+			case "pgup":
+				// Page up
+				current := m.list.Index()
+				pageSize := m.height - 5
+				newIndex := current - pageSize
+				if newIndex < 0 {
+					newIndex = 0
+				}
+				m.list.Select(newIndex)
+			case "pgdown":
+				// Page down
+				current := m.list.Index()
+				pageSize := m.height - 5
+				newIndex := current + pageSize
+				if newIndex >= len(m.results) {
+					newIndex = len(m.results) - 1
+				}
+				m.list.Select(newIndex)
+			case "down", "j":
+				// Half-page down for faster navigation
+				current := m.list.Index()
+				halfPage := (m.height - 5) / 2
+				if halfPage < 3 {
+					halfPage = 3
+				}
+				newIndex := current + halfPage
+				if newIndex >= len(m.results) {
+					newIndex = len(m.results) - 1
+				}
+				m.list.Select(newIndex)
+			case "up", "k":
+				// Half-page up for faster navigation
+				current := m.list.Index()
+				halfPage := (m.height - 5) / 2
+				if halfPage < 3 {
+					halfPage = 3
+				}
+				newIndex := current - halfPage
+				if newIndex < 0 {
+					newIndex = 0
+				}
+				m.list.Select(newIndex)
 			default:
-				// Navigation keys will be handled by component update below
+				// Let other keys fall through to component
 			}
 
 		case ModeDetail, ModeConversation:
@@ -200,7 +262,7 @@ func (m searchModel) View() string {
 	var help string
 	switch m.mode {
 	case ModeList:
-		help = HelpStyle.Render("↑/↓: navigate • enter: view details • v: view conversation • q: quit")
+		help = HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: details • v: view • o: open in claude.ai • q: quit")
 	case ModeDetail:
 		help = HelpStyle.Render("↑/↓: scroll • v: view full conversation • esc: back • q: quit")
 	case ModeConversation:
@@ -304,4 +366,22 @@ func (m searchModel) getMessageContext(result *models.SearchResult, contextLines
 	}
 
 	return messages[start:end], nil
+}
+
+// openURL opens a URL in the default browser
+func openURL(url string) {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+	}
+	args = append(args, url)
+	exec.Command(cmd, args...).Start()
 }

@@ -1,8 +1,8 @@
 package rendering
 
 import (
-	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -14,25 +14,49 @@ type MarkdownRenderer struct {
 	width        int
 }
 
-// NewMarkdownRenderer creates a new markdown renderer
-func NewMarkdownRenderer(width int) (*MarkdownRenderer, error) {
-	// Create renderer with a dark theme and word wrapping
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width-4), // Account for padding
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create markdown renderer: %w", err)
-	}
+var (
+	sharedRenderer     *MarkdownRenderer
+	sharedRendererOnce sync.Once
+)
 
-	return &MarkdownRenderer{
-		termRenderer: r,
-		width:        width,
-	}, nil
+// GetSharedRenderer returns a singleton markdown renderer
+func GetSharedRenderer() *MarkdownRenderer {
+	sharedRendererOnce.Do(func() {
+		// Create renderer with a fixed dark theme - no auto detection
+		r, err := glamour.NewTermRenderer(
+			glamour.WithStandardStyle("dark"),
+			glamour.WithWordWrap(76), // Fixed width for consistency
+		)
+		if err != nil {
+			// If glamour fails, create a minimal renderer
+			sharedRenderer = &MarkdownRenderer{
+				termRenderer: nil,
+				width:        80,
+			}
+			return
+		}
+
+		sharedRenderer = &MarkdownRenderer{
+			termRenderer: r,
+			width:        80,
+		}
+	})
+	return sharedRenderer
+}
+
+// NewMarkdownRenderer creates a new markdown renderer (legacy function)
+func NewMarkdownRenderer(width int) (*MarkdownRenderer, error) {
+	// Use shared renderer for performance
+	return GetSharedRenderer(), nil
 }
 
 // RenderMessage renders a message with markdown formatting
 func (mr *MarkdownRenderer) RenderMessage(text string, sender string, isSnippet bool) (string, error) {
+	// If glamour creation failed, use plain text
+	if mr.termRenderer == nil {
+		return mr.formatPlainText(text), nil
+	}
+
 	// For snippets, we want to preserve the search highlighting
 	if isSnippet {
 		return mr.renderSnippet(text, sender)

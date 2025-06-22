@@ -168,6 +168,12 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.viewport.GotoTop()
 						}
 					}
+				case "o":
+					// Open conversation in claude.ai
+					if i, ok := m.list.SelectedItem().(conversationItem); ok {
+						url := fmt.Sprintf("https://claude.ai/chat/%s", i.conv.UUID)
+						openURL(url)
+					}
 				case "g":
 					// Jump to beginning
 					m.list.Select(0)
@@ -180,6 +186,48 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "end":
 					// Jump to end
 					m.list.Select(len(m.conversations) - 1)
+				case "pgup":
+					// Page up
+					current := m.list.Index()
+					pageSize := m.height - 5
+					newIndex := current - pageSize
+					if newIndex < 0 {
+						newIndex = 0
+					}
+					m.list.Select(newIndex)
+				case "pgdown":
+					// Page down
+					current := m.list.Index()
+					pageSize := m.height - 5
+					newIndex := current + pageSize
+					if newIndex >= len(m.conversations) {
+						newIndex = len(m.conversations) - 1
+					}
+					m.list.Select(newIndex)
+				case "down", "j":
+					// Half-page down for faster navigation
+					current := m.list.Index()
+					halfPage := (m.height - 5) / 2
+					if halfPage < 3 {
+						halfPage = 3
+					}
+					newIndex := current + halfPage
+					if newIndex >= len(m.conversations) {
+						newIndex = len(m.conversations) - 1
+					}
+					m.list.Select(newIndex)
+				case "up", "k":
+					// Half-page up for faster navigation
+					current := m.list.Index()
+					halfPage := (m.height - 5) / 2
+					if halfPage < 3 {
+						halfPage = 3
+					}
+					newIndex := current - halfPage
+					if newIndex < 0 {
+						newIndex = 0
+					}
+					m.list.Select(newIndex)
 				default:
 					list, cmd := m.list.Update(msg)
 					m.list = list
@@ -218,7 +266,7 @@ func (m browseModel) View() string {
 		content := m.list.View()
 
 		// Help
-		help := HelpStyle.Render("↑/↓: navigate • g/G: jump to top/bottom • enter: view • /: search • q: quit")
+		help := HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: view • o: open in claude.ai • /: search • q: quit")
 
 		return searchBar + content + "\n" + help
 
@@ -230,3 +278,4 @@ func (m browseModel) View() string {
 
 	return ""
 }
+

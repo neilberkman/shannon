@@ -18,6 +18,7 @@ Named after Claude Shannon, the father of information theory, this tool helps yo
 - 📤 **Export formats** - JSON, CSV, and Markdown output
 - 🔗 **Pipeline-friendly** - Designed for Unix pipeline integration
 - 📊 **Statistics** - Detailed database and conversation analytics
+- 🖥️ **Modern terminal support** - Enhanced features in Ghostty, Kitty, and WezTerm
 
 ## Installation
 
@@ -71,11 +72,13 @@ shannon import path/to/conversations.json
 ### Search
 
 Basic search:
+
 ```bash
 shannon search "machine learning"
 ```
 
 Advanced search with filters:
+
 ```bash
 # Search only human messages
 shannon search "python code" --sender human
@@ -167,6 +170,27 @@ shannon view 123 --branches
 shannon stats
 ```
 
+### Terminal Features
+
+```bash
+# Check what terminal features are supported
+shannon terminal
+```
+
+Shannon provides enhanced features in modern terminals:
+
+#### Ghostty, Kitty, WezTerm
+
+- **Clickable conversation IDs** - Click to view conversations directly
+- **Clickable URLs** - Auto-detected links become clickable
+- **Rich hyperlinks** - Email addresses, GitHub repos, and file paths
+
+#### All Terminals
+
+- **Progressive enhancement** - Features gracefully degrade in basic terminals
+- **Rich markdown rendering** - Syntax highlighting and formatting
+- **Adaptive themes** - Automatically matches terminal light/dark mode
+
 ### Interactive TUI Mode
 
 ```bash
@@ -178,13 +202,14 @@ shannon tui
 ```
 
 TUI Keyboard Shortcuts:
+
 - **Browse Mode**:
   - `↑/↓`: Navigate conversations
   - `Enter`: View conversation
   - `/`: Search
   - `q`: Quit
-  
 - **Search Results**:
+
   - `↑/↓`: Navigate results
   - `Enter`: View message details
   - `v`: View full conversation
@@ -241,14 +266,33 @@ shannon recent --format id | \
 ## Configuration
 
 Configuration file is stored in platform-specific locations:
+
 - Linux: `~/.config/shannon/config.yaml`
 - macOS: `~/Library/Application Support/shannon/config.yaml`
 - Windows: `%APPDATA%\shannon\config.yaml`
 
 Database is stored in:
+
 - Linux: `~/.local/share/shannon/claude-search.db`
 - macOS: `~/Library/Application Support/shannon/claude-search.db`
 - Windows: `%LOCALAPPDATA%\shannon\claude-search.db`
+
+## Terminal Compatibility
+
+Shannon works in any terminal but provides enhanced features in modern emulators:
+
+| Terminal               | Hyperlinks | Graphics | Advanced Input |
+| ---------------------- | ---------- | -------- | -------------- |
+| **Ghostty**            | ✅         | ✅\*     | ✅             |
+| **Kitty**              | ✅         | ✅\*     | ✅             |
+| **WezTerm**            | ✅         | ✅\*     | ✅             |
+| **iTerm2**             | ✅         | ✅\*     | ❌             |
+| **VS Code**            | ✅         | ❌       | ❌             |
+| **Standard terminals** | ❌         | ❌       | ❌             |
+
+\*Graphics support planned for future versions
+
+Run `shannon terminal` to see what features are available in your current terminal.
 
 ## Development
 

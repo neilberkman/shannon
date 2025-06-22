@@ -30,17 +30,17 @@ func (r *SimpleMarkdownRenderer) renderSnippet(text string) string {
 	// For snippets, just clean up and return plain text
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.TrimSpace(text)
-	
+
 	// Remove markdown syntax for clean snippet display
-	text = regexp.MustCompile(`\*\*(.*?)\*\*`).ReplaceAllString(text, "$1")   // Bold
-	text = regexp.MustCompile(`\*(.*?)\*`).ReplaceAllString(text, "$1")       // Italic
-	text = regexp.MustCompile("`(.*?)`").ReplaceAllString(text, "$1")         // Code
-	text = regexp.MustCompile(`#{1,6}\s+`).ReplaceAllString(text, "")         // Headers
-	
+	text = regexp.MustCompile(`\*\*(.*?)\*\*`).ReplaceAllString(text, "$1") // Bold
+	text = regexp.MustCompile(`\*(.*?)\*`).ReplaceAllString(text, "$1")     // Italic
+	text = regexp.MustCompile("`(.*?)`").ReplaceAllString(text, "$1")       // Code
+	text = regexp.MustCompile(`#{1,6}\s+`).ReplaceAllString(text, "")       // Headers
+
 	if len(text) > 80 {
 		text = text[:77] + "..."
 	}
-	
+
 	return text
 }
 
@@ -48,31 +48,31 @@ func (r *SimpleMarkdownRenderer) renderSnippet(text string) string {
 func (r *SimpleMarkdownRenderer) renderFull(text string) string {
 	lines := strings.Split(text, "\n")
 	var result strings.Builder
-	
+
 	// Styles
 	codeStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#2D2D2D")).
 		Foreground(lipgloss.Color("#E6E6E6")).
 		Padding(0, 1)
-	
+
 	codeBlockStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#1E1E1E")).
 		Foreground(lipgloss.Color("#E6E6E6")).
 		Padding(1).
 		Margin(1, 0)
-		
+
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#7D56F4"))
-		
+
 	boldStyle := lipgloss.NewStyle().Bold(true)
-	
+
 	inCodeBlock := false
 	var codeBlockContent strings.Builder
-	
+
 	for _, line := range lines {
 		line = strings.TrimRight(line, " \t")
-		
+
 		// Handle code blocks
 		if strings.HasPrefix(line, "```") {
 			if inCodeBlock {
@@ -89,15 +89,15 @@ func (r *SimpleMarkdownRenderer) renderFull(text string) string {
 			inCodeBlock = !inCodeBlock
 			continue
 		}
-		
+
 		if inCodeBlock {
 			codeBlockContent.WriteString(line + "\n")
 			continue
 		}
-		
+
 		// Process regular lines
 		processed := r.processInlineFormatting(line, codeStyle, boldStyle)
-		
+
 		// Handle headers
 		if strings.HasPrefix(processed, "#") {
 			headerLevel := 0
@@ -112,16 +112,16 @@ func (r *SimpleMarkdownRenderer) renderFull(text string) string {
 				}
 			}
 		}
-		
+
 		result.WriteString(processed)
 		result.WriteString("\n")
 	}
-	
+
 	// Handle unclosed code block
 	if inCodeBlock && codeBlockContent.Len() > 0 {
 		result.WriteString(codeBlockStyle.Render(codeBlockContent.String()))
 	}
-	
+
 	return strings.TrimSpace(result.String())
 }
 
@@ -129,11 +129,11 @@ func (r *SimpleMarkdownRenderer) renderFull(text string) string {
 func (r *SimpleMarkdownRenderer) processInlineFormatting(text string, codeStyle, boldStyle lipgloss.Style) string {
 	// Handle inline code first (to avoid conflicts)
 	text = r.replaceWithStyle(text, "`([^`]+)`", codeStyle)
-	
+
 	// Handle bold
 	text = r.replaceWithStyle(text, `\*\*([^*]+)\*\*`, boldStyle)
 	text = r.replaceWithStyle(text, `__([^_]+)__`, boldStyle)
-	
+
 	return text
 }
 

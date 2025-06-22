@@ -205,21 +205,34 @@ TUI Keyboard Shortcuts:
 
 - **Browse Mode**:
   - `↑/↓`: Navigate conversations
-  - `Enter`: View conversation
+  - `Enter`: View conversation  
   - `/`: Search
-  - `q`: Quit
-- **Search Results**:
+  - `q`: Quit application
 
-  - `↑/↓`: Navigate results
-  - `Enter`: View message details
-  - `v`: View full conversation
-  - `Esc`: Back to list
-  - `q`: Quit
+- **Search Results**:
+  - `↑/↓`: Navigate conversations
+  - `Enter`: View full conversation
+  - `Esc`: Back to browse mode
+  - `q`: Quit application
 
 - **Conversation View**:
-  - `↑/↓`: Scroll
-  - `Esc`: Back
-  - `q`: Quit
+  - `↑/↓`: Scroll messages
+  - `g/G`: Go to top/bottom
+  - `/`: Find text within conversation
+  - `Esc`: Back to search results (or clear find if active)
+  - `q`: Quit application
+
+- **Find Mode** (within conversation):
+  - `n/N`: Next/previous match
+  - `Esc`: Clear find and return to conversation
+  - `q`: Quit application
+
+**TUI Features:**
+- 🔍 **In-conversation search** - Find and highlight text within conversations
+- 🔙 **Browser-like navigation** - ESC acts as back button, q quits completely  
+- 💬 **Conversation-centric results** - Search shows conversations, not individual messages
+- 📍 **Smart positioning** - Conversations start at the first message when opened
+- ⌨️ **Consistent shortcuts** - Standard vim-like navigation (g/G for top/bottom)
 
 ## Search Syntax
 

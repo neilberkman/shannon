@@ -168,10 +168,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			default:
-				// Forward navigation keys to the list
-				var cmd tea.Cmd
-				m.list, cmd = m.list.Update(msg)
-				return m, cmd
+				// Navigation keys will be handled by component update below
 			}
 
 		case ModeDetail, ModeConversation:

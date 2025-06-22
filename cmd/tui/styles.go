@@ -42,4 +42,9 @@ var (
 				Foreground(lipgloss.Color("#FAFAFA")).
 				Padding(0, 1).
 				Bold(true)
+
+	// Find highlight style that respects terminal themes
+	FindHighlightStyle = lipgloss.NewStyle().
+				Reverse(true).
+				Bold(true)
 )

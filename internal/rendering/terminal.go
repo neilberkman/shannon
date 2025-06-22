@@ -7,25 +7,25 @@ import (
 
 // TerminalCapabilities represents what features the current terminal supports
 type TerminalCapabilities struct {
-	SupportsHyperlinks bool
-	SupportsGraphics   bool
+	SupportsHyperlinks    bool
+	SupportsGraphics      bool
 	SupportsAdvancedInput bool
-	TerminalType       string
+	TerminalType          string
 }
 
 // DetectTerminalCapabilities detects what features the current terminal supports
 func DetectTerminalCapabilities() *TerminalCapabilities {
 	caps := &TerminalCapabilities{}
-	
+
 	// Check environment variables for terminal identification
 	termProgram := os.Getenv("TERM_PROGRAM")
 	termName := os.Getenv("TERM")
-	
+
 	caps.TerminalType = termProgram
 	if caps.TerminalType == "" {
 		caps.TerminalType = termName
 	}
-	
+
 	// Detect based on known terminal programs
 	switch termProgram {
 	case "ghostty":
@@ -49,23 +49,23 @@ func DetectTerminalCapabilities() *TerminalCapabilities {
 		caps.SupportsGraphics = false
 		caps.SupportsAdvancedInput = false
 	}
-	
+
 	// Check for specific environment variables that indicate capability
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		caps.SupportsHyperlinks = true
 		caps.SupportsGraphics = true
 		caps.SupportsAdvancedInput = true
 	}
-	
+
 	// Check TERM variable for additional hints
 	if strings.Contains(termName, "xterm") {
 		// Most modern xterm variants support hyperlinks
 		caps.SupportsHyperlinks = true
 	}
-	
+
 	// Conservative fallback - if we can't detect, assume basic terminal
 	// Better to have working text than broken escape codes
-	
+
 	return caps
 }
 
@@ -82,9 +82,9 @@ func IsGraphicsSupported() bool {
 // GetTerminalInfo returns human-readable terminal information
 func GetTerminalInfo() string {
 	caps := DetectTerminalCapabilities()
-	
+
 	info := "Terminal: " + caps.TerminalType
-	
+
 	features := []string{}
 	if caps.SupportsHyperlinks {
 		features = append(features, "hyperlinks")
@@ -95,10 +95,10 @@ func GetTerminalInfo() string {
 	if caps.SupportsAdvancedInput {
 		features = append(features, "advanced-input")
 	}
-	
+
 	if len(features) > 0 {
 		info += " (supports: " + strings.Join(features, ", ") + ")"
 	}
-	
+
 	return info
 }

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/import"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (

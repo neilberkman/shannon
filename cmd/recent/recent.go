@@ -6,9 +6,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -139,7 +139,7 @@ func runRecent(cmd *cobra.Command, args []string) error {
 
 func formatRelativeTime(t time.Time) string {
 	duration := time.Since(t)
-	
+
 	if duration < time.Hour {
 		return fmt.Sprintf("%d minutes ago", int(duration.Minutes()))
 	} else if duration < 24*time.Hour {
@@ -147,7 +147,7 @@ func formatRelativeTime(t time.Time) string {
 	} else if duration < 7*24*time.Hour {
 		return fmt.Sprintf("%d days ago", int(duration.Hours()/24))
 	}
-	
+
 	return t.Format("Jan 2")
 }
 

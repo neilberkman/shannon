@@ -8,8 +8,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/discovery"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -49,15 +49,15 @@ func init() {
 
 func runDiscover(cmd *cobra.Command, args []string) error {
 	scanner := discovery.NewScanner()
-	
+
 	// Add additional search paths
 	for _, path := range includePaths {
 		scanner.AddSearchPath(path)
 	}
-	
+
 	var exports []*discovery.ExportFile
 	var err error
-	
+
 	if recent {
 		duration, err := parseDuration(recentDuration)
 		if err != nil {
@@ -73,11 +73,11 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("scan failed: %w", err)
 		}
 	}
-	
+
 	// Filter exports based on flags
 	var displayExports []*discovery.ExportFile
 	var validExports []*discovery.ExportFile
-	
+
 	for _, export := range exports {
 		if export.IsValid {
 			validExports = append(validExports, export)
@@ -86,7 +86,7 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			displayExports = append(displayExports, export)
 		}
 	}
-	
+
 	// Display results
 	if len(displayExports) == 0 {
 		if recent {
@@ -97,11 +97,11 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nTip: Try 'shannon discover --show-invalid' to see files that look like exports but couldn't be validated.")
 		return nil
 	}
-	
+
 	if err := displayExportTable(displayExports); err != nil {
 		return err
 	}
-	
+
 	// Auto-import if requested
 	if autoImport && len(validExports) > 0 {
 		fmt.Printf("\nAuto-importing %d valid export(s)...\n", len(validExports))
@@ -111,34 +111,34 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			// This would call the import logic directly
 		}
 	}
-	
+
 	return nil
 }
 
 func displayExportTable(exports []*discovery.ExportFile) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	
+
 	if _, err := fmt.Fprintln(w, "STATUS\tFILE\tSIZE\tMODIFIED\tCONVS\tMSGS\tDATE RANGE"); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w, "------\t----\t----\t--------\t-----\t----\t----------"); err != nil {
 		return err
 	}
-	
+
 	for _, export := range exports {
 		status := "✓"
 		if !export.IsValid {
 			status = "✗"
 		}
-		
+
 		filename := filepath.Base(export.Path)
 		if len(filename) > 30 {
 			filename = filename[:27] + "..."
 		}
-		
+
 		size := formatSize(export.Size)
 		modified := export.ModTime.Format("Jan 2 15:04")
-		
+
 		var convs, msgs, dateRange string
 		if export.Preview != nil {
 			convs = fmt.Sprintf("%d", export.Preview.ConversationCount)
@@ -149,17 +149,17 @@ func displayExportTable(exports []*discovery.ExportFile) error {
 			msgs = "-"
 			dateRange = "-"
 		}
-		
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", 
+
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			status, filename, size, modified, convs, msgs, dateRange); err != nil {
 			return err
 		}
 	}
-	
+
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	
+
 	// Show summary
 	validCount := 0
 	for _, export := range exports {
@@ -167,16 +167,16 @@ func displayExportTable(exports []*discovery.ExportFile) error {
 			validCount++
 		}
 	}
-	
+
 	fmt.Printf("\nFound %d file(s): %d valid, %d invalid\n", len(exports), validCount, len(exports)-validCount)
-	
+
 	// Show invalid files with errors
 	for _, export := range exports {
 		if !export.IsValid {
 			fmt.Printf("⚠️  %s: %s\n", filepath.Base(export.Path), export.ErrorMessage)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -201,7 +201,7 @@ func parseDuration(s string) (time.Duration, error) {
 			return d * 24, nil
 		}
 	}
-	
+
 	// Use standard time.ParseDuration for other formats
 	return time.ParseDuration(s)
 }

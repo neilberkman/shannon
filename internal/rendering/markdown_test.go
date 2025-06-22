@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -45,38 +46,38 @@ func TestDetectContentType(t *testing.T) {
 			expected: ContentTypePlain,
 		},
 		{
-			name: "markdown with code blocks",
-			text: "Here's some code:\n\n```python\ndef hello():\n\tprint(\"Hello, world!\")\n```\n\nThat's it!",
+			name:     "markdown with code blocks",
+			text:     "Here's some code:\n\n```python\ndef hello():\n\tprint(\"Hello, world!\")\n```\n\nThat's it!",
 			expected: ContentTypeMarkdown,
 		},
 		{
-			name: "markdown with headers",
-			text: "# Main Title\n\n## Subtitle\n\nSome content here.\n\n### Another section",
+			name:     "markdown with headers",
+			text:     "# Main Title\n\n## Subtitle\n\nSome content here.\n\n### Another section",
 			expected: ContentTypeMarkdown,
 		},
 		{
-			name: "markdown with lists",
-			text: "Here are some items:\n\n- First item\n- Second item\n- Third item\n\nAnd numbered:\n1. One\n2. Two",
+			name:     "markdown with lists",
+			text:     "Here are some items:\n\n- First item\n- Second item\n- Third item\n\nAnd numbered:\n1. One\n2. Two",
 			expected: ContentTypeMarkdown,
 		},
 		{
-			name: "mixed content",
-			text: "This has some *italic* text and a bit of **bold** but mostly plain.",
+			name:     "mixed content",
+			text:     "This has some *italic* text and a bit of **bold** but mostly plain.",
 			expected: ContentTypeMarkdown, // Updated expectation
 		},
 		{
-			name: "inline code",
-			text: "Use the `print()` function to display output.",
-			expected: ContentTypeMarkdown, // Updated expectation  
+			name:     "inline code",
+			text:     "Use the `print()` function to display output.",
+			expected: ContentTypeMarkdown, // Updated expectation
 		},
 		{
-			name: "technical terms",
-			text: "We need to configure the API endpoint and set up authentication.",
+			name:     "technical terms",
+			text:     "We need to configure the API endpoint and set up authentication.",
 			expected: ContentTypePlain, // API is detected but not enough other markers
 		},
 		{
-			name: "file extensions",
-			text: "Save this as script.py and run it with python script.py",
+			name:     "file extensions",
+			text:     "Save this as script.py and run it with python script.py",
 			expected: ContentTypePlain, // File extensions detected but low ratio
 		},
 		{
@@ -117,8 +118,8 @@ func TestRenderMessage(t *testing.T) {
 			shouldWork: true,
 		},
 		{
-			name: "markdown with code",
-			text: "Here's some code:\n\n```go\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n```",
+			name:       "markdown with code",
+			text:       "Here's some code:\n\n```go\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n```",
 			sender:     "assistant",
 			isSnippet:  false,
 			shouldWork: true,
@@ -131,15 +132,15 @@ func TestRenderMessage(t *testing.T) {
 			shouldWork: true,
 		},
 		{
-			name: "markdown headers",
-			text: "# Title\n\n## Subtitle\n\nContent here.",
+			name:       "markdown headers",
+			text:       "# Title\n\n## Subtitle\n\nContent here.",
 			sender:     "assistant",
 			isSnippet:  false,
 			shouldWork: true,
 		},
 		{
-			name: "markdown list",
-			text: "Items:\n\n- First\n- Second\n- Third",
+			name:       "markdown list",
+			text:       "Items:\n\n- First\n- Second\n- Third",
 			sender:     "human",
 			isSnippet:  false,
 			shouldWork: true,
@@ -188,8 +189,8 @@ func TestFormatPlainText(t *testing.T) {
 			expected: "Use print() function", // Should have some formatting
 		},
 		{
-			name: "text with code block",
-			text: "Example:\n\n```\ncode here\n```\n\nDone.",
+			name:     "text with code block",
+			text:     "Example:\n\n```\ncode here\n```\n\nDone.",
 			expected: "Example:\n\ncode here\n\nDone.", // Should have some formatting
 		},
 	}
@@ -372,4 +373,175 @@ func BenchmarkRenderSnippet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = renderer.RenderMessage(text, "assistant", true)
 	}
+}
+
+func TestRenderFullMessageWithHyperlinks(t *testing.T) {
+	tests := []struct {
+		name               string
+		setupEnv           func()
+		text               string
+		expectedContains   []string
+		unexpectedContains []string
+	}{
+		{
+			name: "URLs become hyperlinks in supported terminal",
+			setupEnv: func() {
+				os.Setenv("TERM_PROGRAM", "ghostty")
+			},
+			text: "Check out https://example.com for more info",
+			expectedContains: []string{
+				"\x1b]8;;https://example.com\x1b\\https://example.com\x1b]8;;\x1b\\",
+				"Check out",
+				"for more info",
+			},
+			unexpectedContains: []string{},
+		},
+		{
+			name: "URLs remain plain text in unsupported terminal",
+			setupEnv: func() {
+				os.Unsetenv("TERM_PROGRAM")
+				os.Unsetenv("KITTY_WINDOW_ID")
+				os.Setenv("TERM", "dumb")
+			},
+			text: "Check out https://example.com for more info",
+			expectedContains: []string{
+				"https://example.com",
+				"Check out",
+				"for more info",
+			},
+			unexpectedContains: []string{
+				"\x1b]8;;",
+			},
+		},
+		{
+			name: "markdown with hyperlinks",
+			setupEnv: func() {
+				os.Setenv("TERM_PROGRAM", "ghostty")
+			},
+			text: "# Header\n\nVisit https://github.com for code",
+			expectedContains: []string{
+				"Header",
+				"\x1b]8;;https://github.com\x1b\\https://github.com\x1b]8;;\x1b\\",
+			},
+			unexpectedContains: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupEnv()
+
+			renderer, err := NewMarkdownRenderer(80)
+			if err != nil {
+				t.Fatalf("Failed to create renderer: %v", err)
+			}
+
+			result, err := renderer.renderFullMessage(tt.text, "human")
+			if err != nil {
+				t.Errorf("renderFullMessage() error = %v", err)
+			}
+
+			for _, expected := range tt.expectedContains {
+				if !containsStringTest(result, expected) {
+					t.Errorf("renderFullMessage() result does not contain expected substring %q\nResult: %q", expected, result)
+				}
+			}
+
+			for _, unexpected := range tt.unexpectedContains {
+				if containsStringTest(result, unexpected) {
+					t.Errorf("renderFullMessage() result contains unexpected substring %q\nResult: %q", unexpected, result)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderSnippetWithHyperlinks(t *testing.T) {
+	os.Setenv("TERM_PROGRAM", "ghostty")
+
+	renderer, err := NewMarkdownRenderer(80)
+	if err != nil {
+		t.Fatalf("Failed to create renderer: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		text   string
+		sender string
+	}{
+		{
+			name:   "snippet with URLs",
+			text:   "Found this link: https://example.com",
+			sender: "assistant",
+		},
+		{
+			name:   "snippet with search highlighting",
+			text:   "This has <mark>highlighted</mark> text and https://github.com",
+			sender: "human",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := renderer.renderSnippet(tt.text, tt.sender)
+			if err != nil {
+				t.Errorf("renderSnippet() error = %v", err)
+			}
+
+			// Should not crash and should return a reasonable result
+			if result == "" {
+				t.Error("renderSnippet() returned empty result")
+			}
+		})
+	}
+}
+
+func TestRenderConversationWithMarkdownAndHyperlinks(t *testing.T) {
+	os.Setenv("TERM_PROGRAM", "ghostty")
+
+	messages := []MessageForRendering{
+		{
+			Sender: "human",
+			Text:   "Check out https://github.com/example/repo for the code",
+		},
+		{
+			Sender: "assistant",
+			Text:   "Thanks! I looked at https://github.com/example/repo and here's what I found:\n\n```go\nfunc main() {\n\tfmt.Println(\"Hello\")\n}\n```",
+		},
+	}
+
+	result, err := RenderConversationWithMarkdown(messages, 100)
+	if err != nil {
+		t.Errorf("RenderConversationWithMarkdown() error = %v", err)
+	}
+
+	// Should contain hyperlinks for URLs
+	expectedSubstrings := []string{
+		"\x1b]8;;https://github.com/example/repo\x1b\\https://github.com/example/repo\x1b]8;;\x1b\\",
+		"HUMAN",
+		"ASSISTANT",
+	}
+
+	for _, expected := range expectedSubstrings {
+		if !containsStringTest(result, expected) {
+			t.Errorf("RenderConversationWithMarkdown() result does not contain expected substring %q", expected)
+		}
+	}
+}
+
+// Helper function for simple substring checking
+func containsStringTest(s, substr string) bool {
+	if len(substr) == 0 {
+		return true
+	}
+	if len(s) < len(substr) {
+		return false
+	}
+
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

@@ -7,11 +7,11 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Remove duplicated styles - now using shared styles from styles.go
@@ -32,22 +32,22 @@ func (i searchItem) Description() string {
 		// Fallback to plain text
 		return i.getPlainSnippet()
 	}
-	
+
 	rendered, err := renderer.RenderMessage(i.result.Snippet, i.result.Sender, true)
 	if err != nil {
 		// Fallback to plain text
 		return i.getPlainSnippet()
 	}
-	
+
 	// Clean up the rendered text for list display
 	snippet := strings.ReplaceAll(rendered, "\n", " ")
 	snippet = strings.TrimSpace(snippet)
-	
+
 	// Truncate if too long
 	if len(snippet) > 80 {
 		snippet = snippet[:77] + "..."
 	}
-	
+
 	return snippet
 }
 
@@ -74,15 +74,15 @@ const (
 
 // searchModel is the main model for search TUI
 type searchModel struct {
-	engine      *search.Engine
-	results     []*models.SearchResult
-	list        list.Model
-	viewport    viewport.Model
-	mode        Mode
-	selected    int
-	width       int
-	height      int
-	query       string
+	engine       *search.Engine
+	results      []*models.SearchResult
+	list         list.Model
+	viewport     viewport.Model
+	mode         Mode
+	selected     int
+	width        int
+	height       int
+	query        string
 	conversation *models.Conversation
 	messages     []*models.Message
 }
@@ -232,12 +232,12 @@ func (m searchModel) renderDetail(result *models.SearchResult) string {
 	// Conversation info
 	sb.WriteString(ConversationStyle.Bold(true).Render("Conversation: "))
 	sb.WriteString(fmt.Sprintf("%s (ID: %d)\n", result.ConversationName, result.ConversationID))
-	
+
 	// Message info
 	sb.WriteString(ConversationStyle.Bold(true).Render("Sender: "))
 	caser := cases.Title(language.English)
 	sb.WriteString(fmt.Sprintf("%s\n", caser.String(result.Sender)))
-	
+
 	sb.WriteString(ConversationStyle.Bold(true).Render("Date: "))
 	sb.WriteString(DateStyle.Render(result.CreatedAt.Format("2006-01-02 15:04:05")))
 	sb.WriteString("\n\n")
@@ -255,7 +255,7 @@ func (m searchModel) renderDetail(result *models.SearchResult) string {
 			if msg.UUID == result.MessageUUID {
 				// Highlight the found message
 				caser := cases.Title(language.English)
-				sb.WriteString(SelectedStyle.Render(fmt.Sprintf("[%s] %s", 
+				sb.WriteString(SelectedStyle.Render(fmt.Sprintf("[%s] %s",
 					msg.CreatedAt.Format("15:04"),
 					caser.String(msg.Sender))))
 				sb.WriteString("\n")
@@ -267,7 +267,7 @@ func (m searchModel) renderDetail(result *models.SearchResult) string {
 			} else {
 				// Regular message
 				caser := cases.Title(language.English)
-				sb.WriteString(fmt.Sprintf("[%s] %s\n", 
+				sb.WriteString(fmt.Sprintf("[%s] %s\n",
 					msg.CreatedAt.Format("15:04"),
 					caser.String(msg.Sender)))
 				text := strings.TrimSpace(msg.Text)

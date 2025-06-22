@@ -38,8 +38,8 @@ var (
 			Foreground(lipgloss.Color("#04B5FF"))
 
 	NotificationStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#04B575")).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Padding(0, 1).
-			Bold(true)
+				Background(lipgloss.Color("#04B575")).
+				Foreground(lipgloss.Color("#FAFAFA")).
+				Padding(0, 1).
+				Bold(true)
 )

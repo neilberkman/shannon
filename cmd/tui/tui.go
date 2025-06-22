@@ -7,11 +7,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/discovery"
 	"github.com/neilberkman/shannon/internal/search"
+	"github.com/spf13/cobra"
 )
 
 // ViewType represents the current active view
@@ -24,14 +24,14 @@ const (
 
 // mainModel is the root model that manages global state and child views
 type mainModel struct {
-	engine      *search.Engine
-	currentView tea.Model
-	viewType    ViewType
-	width       int
-	height      int
-	watchFiles  bool
-	scanner     *discovery.Scanner
-	notification string
+	engine           *search.Engine
+	currentView      tea.Model
+	viewType         ViewType
+	width            int
+	height           int
+	watchFiles       bool
+	scanner          *discovery.Scanner
+	notification     string
 	notificationTime time.Time
 }
 
@@ -89,17 +89,17 @@ type newExportsFoundMsg struct {
 // Init initializes the main model
 func (m mainModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	
+
 	// Initialize child view
 	cmds = append(cmds, m.currentView.Init())
-	
+
 	// Start export checking if watching
 	if m.watchFiles {
 		cmds = append(cmds, tea.Tick(time.Minute*2, func(t time.Time) tea.Msg {
 			return checkExportsMsg{}
 		}))
 	}
-	
+
 	return tea.Batch(cmds...)
 }
 
@@ -164,13 +164,13 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the current view
 func (m mainModel) View() string {
 	view := m.currentView.View()
-	
+
 	// Add notification if recent and watching
 	if m.notification != "" && time.Since(m.notificationTime) < time.Second*10 {
 		// Show notification at the bottom for 10 seconds
 		view += "\n" + NotificationStyle.Render(m.notification)
 	}
-	
+
 	return view
 }
 
@@ -249,7 +249,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Warning: failed to close debug file: %v\n", err)
 		}
 	}()
-	
+
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)

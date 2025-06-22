@@ -187,22 +187,22 @@ func (e *Engine) processFTSQuery(userQuery string) string {
 func (e *Engine) isCodeQuery(query string) bool {
 	// Patterns that indicate code-related searches
 	codePatterns := []*regexp.Regexp{
-		regexp.MustCompile(`[a-z][A-Z]`),                    // camelCase
-		regexp.MustCompile(`[A-Z][a-z]+[A-Z]`),             // PascalCase  
-		regexp.MustCompile(`\w+_\w+`),                      // snake_case
-		regexp.MustCompile(`\w+\.\w+`),                     // method.calls or file.ext
-		regexp.MustCompile(`\w+::\w+`),                     // namespace::function
-		regexp.MustCompile(`\w+\(\)`),                      // function()
-		regexp.MustCompile(`\w+\[\]`),                      // array[]
-		regexp.MustCompile(`[{}()\[\]<>]`),                 // brackets/braces
-		regexp.MustCompile(`[=!<>]=?`),                     // operators
-		regexp.MustCompile(`\+\+|--|&&|\|\||->|=>`),       // compound operators
+		regexp.MustCompile(`[a-z][A-Z]`),            // camelCase
+		regexp.MustCompile(`[A-Z][a-z]+[A-Z]`),      // PascalCase
+		regexp.MustCompile(`\w+_\w+`),               // snake_case
+		regexp.MustCompile(`\w+\.\w+`),              // method.calls or file.ext
+		regexp.MustCompile(`\w+::\w+`),              // namespace::function
+		regexp.MustCompile(`\w+\(\)`),               // function()
+		regexp.MustCompile(`\w+\[\]`),               // array[]
+		regexp.MustCompile(`[{}()\[\]<>]`),          // brackets/braces
+		regexp.MustCompile(`[=!<>]=?`),              // operators
+		regexp.MustCompile(`\+\+|--|&&|\|\||->|=>`), // compound operators
 		regexp.MustCompile(`\b(def|function|class|import|export|const|let|var|if|else|for|while|return|async|await|interface|type|struct|enum)\b`), // keywords
-		regexp.MustCompile(`\b[A-Z_][A-Z0-9_]{2,}\b`),     // CONSTANTS
-		regexp.MustCompile(`#\w+`),                         // #hashtags or CSS/preprocessor
-		regexp.MustCompile(`\$\w+`),                        // $variables
-		regexp.MustCompile(`@\w+`),                         // @decorators
-		regexp.MustCompile(`\\\w+`),                        // \commands
+		regexp.MustCompile(`\b[A-Z_][A-Z0-9_]{2,}\b`), // CONSTANTS
+		regexp.MustCompile(`#\w+`),                    // #hashtags or CSS/preprocessor
+		regexp.MustCompile(`\$\w+`),                   // $variables
+		regexp.MustCompile(`@\w+`),                    // @decorators
+		regexp.MustCompile(`\\\w+`),                   // \commands
 		regexp.MustCompile(`\b\w+\.(js|ts|py|go|rs|cpp|c|h|java|kt|swift|rb|php|cs|scala|clj|hs|ml|elm|dart|vue|jsx|tsx|css|scss|sass|less|html|xml|json|yaml|yml|toml|ini|cfg|conf|sh|bash|zsh|fish|ps1|bat|cmd|sql|md|rst|tex|r|m|pl|lua|vim|emacs)\b`), // file extensions
 	}
 

@@ -39,12 +39,12 @@ type Scanner struct {
 // NewScanner creates a new export file scanner
 func NewScanner() *Scanner {
 	scanner := &Scanner{}
-	
+
 	// Add default Downloads directory
 	if downloadsDir, err := platform.GetDownloadsDir(); err == nil {
 		scanner.searchPaths = append(scanner.searchPaths, downloadsDir)
 	}
-	
+
 	return scanner
 }
 
@@ -56,7 +56,7 @@ func (s *Scanner) AddSearchPath(path string) {
 // ScanForExports finds Claude export files in the configured paths
 func (s *Scanner) ScanForExports() ([]*ExportFile, error) {
 	var exports []*ExportFile
-	
+
 	for _, searchPath := range s.searchPaths {
 		files, err := s.scanDirectory(searchPath)
 		if err != nil {
@@ -66,34 +66,34 @@ func (s *Scanner) ScanForExports() ([]*ExportFile, error) {
 		}
 		exports = append(exports, files...)
 	}
-	
+
 	// Sort by modification time (newest first)
 	sort.Slice(exports, func(i, j int) bool {
 		return exports[i].ModTime.After(exports[j].ModTime)
 	})
-	
+
 	return exports, nil
 }
 
 // scanDirectory scans a single directory for Claude export files
 func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 	var exports []*ExportFile
-	
+
 	// Check if directory exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return exports, nil // Empty slice, no error
 	}
-	
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip files with errors
 		}
-		
+
 		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
-		
+
 		// Check if this looks like a Claude export
 		if s.isLikelyClaudeExport(path, info) {
 			export := &ExportFile{
@@ -101,16 +101,16 @@ func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 				Size:    info.Size(),
 				ModTime: info.ModTime(),
 			}
-			
+
 			// Validate and preview the file
 			export.IsValid, export.ErrorMessage, export.Preview = s.validateAndPreview(path)
-			
+
 			exports = append(exports, export)
 		}
-		
+
 		return nil
 	})
-	
+
 	return exports, err
 }
 
@@ -120,19 +120,19 @@ func (s *Scanner) isLikelyClaudeExport(path string, info os.FileInfo) bool {
 	if !strings.HasSuffix(strings.ToLower(path), ".json") {
 		return false
 	}
-	
+
 	// Skip very small files (< 1KB)
 	if info.Size() < 1024 {
 		return false
 	}
-	
+
 	// Skip very large files (> 500MB) - probably not exports
 	if info.Size() > 500*1024*1024 {
 		return false
 	}
-	
+
 	filename := strings.ToLower(filepath.Base(path))
-	
+
 	// Common Claude export filename patterns
 	patterns := []string{
 		"conversations",
@@ -141,18 +141,18 @@ func (s *Scanner) isLikelyClaudeExport(path string, info os.FileInfo) bool {
 		"chat",
 		"messages",
 	}
-	
+
 	for _, pattern := range patterns {
 		if strings.Contains(filename, pattern) {
 			return true
 		}
 	}
-	
+
 	// If filename has a date pattern and ends with .json, it might be an export
 	if strings.Contains(filename, "2024") || strings.Contains(filename, "2023") {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -167,38 +167,38 @@ func (s *Scanner) validateAndPreview(path string) (bool, string, *ExportPreview)
 			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", path, err)
 		}
 	}()
-	
+
 	// Try to parse as JSON array of conversations
 	var conversations []models.ClaudeConversation
 	decoder := json.NewDecoder(file)
-	
+
 	if err := decoder.Decode(&conversations); err != nil {
 		return false, fmt.Sprintf("Invalid JSON format: %v", err), nil
 	}
-	
+
 	if len(conversations) == 0 {
 		return false, "No conversations found in export", nil
 	}
-	
+
 	// Validate structure - check first conversation
 	conv := conversations[0]
 	if conv.UUID == "" || conv.Name == "" {
 		return false, "Invalid conversation structure - missing required fields", nil
 	}
-	
+
 	// Create preview
 	preview := &ExportPreview{
 		ConversationCount: len(conversations),
 		FirstConvName:     conv.Name,
 	}
-	
+
 	// Count total messages and find date range
 	var messageCount int
 	var minDate, maxDate time.Time
-	
+
 	for _, c := range conversations {
 		messageCount += len(c.ChatMessages)
-		
+
 		if convTime, err := time.Parse(time.RFC3339, c.CreatedAt); err == nil {
 			if minDate.IsZero() || convTime.Before(minDate) {
 				minDate = convTime
@@ -208,19 +208,19 @@ func (s *Scanner) validateAndPreview(path string) (bool, string, *ExportPreview)
 			}
 		}
 	}
-	
+
 	preview.MessageCount = messageCount
-	
+
 	if !minDate.IsZero() && !maxDate.IsZero() {
 		if minDate.Year() == maxDate.Year() && minDate.Month() == maxDate.Month() {
 			preview.DateRange = minDate.Format("Jan 2006")
 		} else {
-			preview.DateRange = fmt.Sprintf("%s - %s", 
-				minDate.Format("Jan 2006"), 
+			preview.DateRange = fmt.Sprintf("%s - %s",
+				minDate.Format("Jan 2006"),
 				maxDate.Format("Jan 2006"))
 		}
 	}
-	
+
 	return true, "", preview
 }
 
@@ -230,15 +230,15 @@ func (s *Scanner) GetRecentExports(since time.Duration) ([]*ExportFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	cutoff := time.Now().Add(-since)
 	var recent []*ExportFile
-	
+
 	for _, export := range exports {
 		if export.ModTime.After(cutoff) {
 			recent = append(recent, export)
 		}
 	}
-	
+
 	return recent, nil
 }

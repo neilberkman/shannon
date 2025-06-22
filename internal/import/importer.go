@@ -194,7 +194,7 @@ func (i *Importer) getExistingMessageUUIDs(tx *sql.Tx, convUUID string) (map[str
 		JOIN conversations c ON m.conversation_id = c.id
 		WHERE c.uuid = ?
 	`
-	
+
 	rows, err := tx.Query(query, convUUID)
 	if err != nil {
 		return nil, err
@@ -224,14 +224,14 @@ func (i *Importer) getOrCreateMainBranch(tx *sql.Tx, convID int64) (int64, error
 	err := tx.QueryRow(`
 		SELECT id FROM branches WHERE conversation_id = ? AND name = 'main'
 	`, convID).Scan(&branchID)
-	
+
 	if err == sql.ErrNoRows {
 		// Create main branch
 		return i.createBranch(tx, convID, "main", nil)
 	} else if err != nil {
 		return 0, err
 	}
-	
+
 	return branchID, nil
 }
 
@@ -276,7 +276,7 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 		if msg.ParentID != nil && *msg.ParentID != "" {
 			if pid, ok := messageIDMap[*msg.ParentID]; ok {
 				parentID = &pid
-				
+
 				// Check if parent is in main branch - if not, this might be a new branch
 				if isNewBranch, err := i.detectNewBranch(tx, pid, mainBranchID); err != nil {
 					return newMessagesCount, branchesDetected, err
@@ -344,7 +344,7 @@ func (i *Importer) detectNewBranch(tx *sql.Tx, parentID, mainBranchID int64) (bo
 		SELECT COUNT(*) FROM messages 
 		WHERE parent_id = ? AND branch_id = ?
 	`, parentID, mainBranchID).Scan(&childCount)
-	
+
 	if err != nil {
 		return false, err
 	}

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/neilberkman/shannon/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/neilberkman/shannon/internal/config"
 )
 
 var (

@@ -8,10 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/rendering"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -216,7 +216,7 @@ func outputJSON(conversations []conversation, total int) error {
 		"count":         len(conversations),
 		"total":         total,
 	}
-	
+
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)
@@ -224,12 +224,12 @@ func outputJSON(conversations []conversation, total int) error {
 
 func outputCSV(conversations []conversation) error {
 	w := csv.NewWriter(os.Stdout)
-	
+
 	// Header
 	if err := w.Write([]string{"id", "uuid", "name", "message_count", "created_at", "updated_at"}); err != nil {
 		return err
 	}
-	
+
 	// Data
 	for _, c := range conversations {
 		record := []string{
@@ -244,7 +244,7 @@ func outputCSV(conversations []conversation) error {
 			return err
 		}
 	}
-	
+
 	w.Flush()
 	return w.Error()
 }

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/spf13/viper"
 	"github.com/neilberkman/shannon/pkg/platform"
+	"github.com/spf13/viper"
 )
 
 type Config struct {

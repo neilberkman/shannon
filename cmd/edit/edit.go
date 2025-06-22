@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/search"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -99,7 +99,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	// Create temporary file
 	tmpDir := os.TempDir()
 	tmpFile := filepath.Join(tmpDir, fmt.Sprintf("claudesearch-%d%s", conv.ID, ext))
-	
+
 	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write temporary file: %w", err)
 	}
@@ -116,7 +116,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	editCmd.Stdin = os.Stdin
 	editCmd.Stdout = os.Stdout
 	editCmd.Stderr = os.Stderr
-	
+
 	if err := editCmd.Run(); err != nil {
 		return fmt.Errorf("failed to run editor: %w", err)
 	}
@@ -160,15 +160,15 @@ func formatMarkdown(conv *models.Conversation, messages []*models.Message) strin
 
 	for i, msg := range messages {
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
-		
+
 		if msg.Sender == "human" {
 			content += fmt.Sprintf("## Human (%s)\n\n", timestamp)
 		} else {
 			content += fmt.Sprintf("## Assistant (%s)\n\n", timestamp)
 		}
-		
+
 		content += msg.Text + "\n\n"
-		
+
 		if i < len(messages)-1 {
 			content += "---\n\n"
 		}
@@ -194,7 +194,7 @@ func formatText(conv *models.Conversation, messages []*models.Message) string {
 		} else {
 			sender = "ASSISTANT"
 		}
-		
+
 		content += fmt.Sprintf("[%s] %s\n", timestamp, sender)
 		content += "----------------------------------------\n"
 		content += msg.Text + "\n\n"

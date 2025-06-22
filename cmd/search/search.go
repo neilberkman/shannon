@@ -9,14 +9,14 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
+	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -198,7 +198,7 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 
 		if showSnippets {
 			snippet := r.Snippet
-			
+
 			// Apply markdown rendering if enabled
 			if markdown {
 				renderer, err := rendering.NewMarkdownRenderer(60)
@@ -209,12 +209,12 @@ func outputTable(results []*models.SearchResult, showSnippets bool, showContext 
 					}
 				}
 			}
-			
+
 			// Enhance snippet with hyperlinks
 			if rendering.IsHyperlinksSupported() {
 				snippet = rendering.EnhanceTextWithLinks(snippet)
 			}
-			
+
 			// Clean up for tabular display
 			snippet = strings.ReplaceAll(snippet, "\n", " ")
 			snippet = truncate(snippet, 60)
@@ -267,7 +267,7 @@ func outputJSON(results []*models.SearchResult) error {
 		"results": results,
 		"count":   len(results),
 	}
-	
+
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)
@@ -275,12 +275,12 @@ func outputJSON(results []*models.SearchResult) error {
 
 func outputCSV(results []*models.SearchResult) error {
 	w := csv.NewWriter(os.Stdout)
-	
+
 	// Header
 	if err := w.Write([]string{"conversation_id", "conversation_name", "message_uuid", "sender", "created_at", "snippet"}); err != nil {
 		return err
 	}
-	
+
 	// Results
 	for _, r := range results {
 		record := []string{
@@ -295,7 +295,7 @@ func outputCSV(results []*models.SearchResult) error {
 			return err
 		}
 	}
-	
+
 	w.Flush()
 	return w.Error()
 }
@@ -396,7 +396,7 @@ func showMessageContext(database *db.DB, result *models.SearchResult, contextLin
 				}
 			}
 		}
-		
+
 		// Clean up for display
 		text = strings.ReplaceAll(text, "\n", " ")
 		text = truncate(text, 100)

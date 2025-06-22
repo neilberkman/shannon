@@ -58,7 +58,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	// For now, just open a search URL since we don't have the actual Claude URL structure
 	// In reality, you'd need to map the conversation ID to Claude's URL format
 	url := fmt.Sprintf("https://claude.ai/chat/%s", convID)
-	
+
 	// Open in browser
 	var err error
 	switch runtime.GOOS {

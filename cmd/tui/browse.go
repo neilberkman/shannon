@@ -21,8 +21,8 @@ func (i conversationItem) Title() string {
 }
 
 func (i conversationItem) Description() string {
-	return fmt.Sprintf("%d messages • Updated %s", 
-		i.conv.MessageCount, 
+	return fmt.Sprintf("%d messages • Updated %s",
+		i.conv.MessageCount,
 		i.conv.UpdatedAt.Format("2006-01-02"))
 }
 
@@ -32,24 +32,24 @@ func (i conversationItem) FilterValue() string {
 
 // browseModel is the model for browsing conversations
 type browseModel struct {
-	engine       *search.Engine
+	engine        *search.Engine
 	conversations []*models.Conversation
-	list         list.Model
-	textInput    textinput.Model
-	viewport     viewport.Model
-	mode         Mode
-	searching    bool
-	width        int
-	height       int
-	conversation *models.Conversation
-	messages     []*models.Message
+	list          list.Model
+	textInput     textinput.Model
+	viewport      viewport.Model
+	mode          Mode
+	searching     bool
+	width         int
+	height        int
+	conversation  *models.Conversation
+	messages      []*models.Message
 }
 
 // newBrowseModel creates a new browse model
 func newBrowseModel(engine *search.Engine) browseModel {
 	// Get all conversations
 	conversations, _ := engine.GetAllConversations(100, 0)
-	
+
 	// Convert to list items
 	items := make([]list.Item, len(conversations))
 	for i, c := range conversations {

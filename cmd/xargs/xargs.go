@@ -78,16 +78,16 @@ func runXargs(cmd *cobra.Command, args []string) error {
 		// Create a copy of the target command to avoid state issues
 		cmdCopy := &cobra.Command{}
 		*cmdCopy = *targetCmd
-		
+
 		// Build the complete argument list: subcommand flags + ID
 		cmdArgs := append(subargs, id)
 		cmdCopy.SetArgs(cmdArgs)
-		
+
 		// Reset flags to avoid state pollution between executions
 		if err := cmdCopy.Flags().Parse([]string{}); err != nil {
 			return fmt.Errorf("failed to reset flags for '%s': %w", subcommand, err)
 		}
-		
+
 		// Execute the command
 		if err := cmdCopy.Execute(); err != nil {
 			return fmt.Errorf("failed to execute '%s' for conversation %s: %w", subcommand, id, err)

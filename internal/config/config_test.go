@@ -48,14 +48,14 @@ func TestConfigDefaults(t *testing.T) {
 	if err := Init(); err != nil {
 		t.Fatalf("Failed to initialize config: %v", err)
 	}
-	
+
 	cfg := Get()
-	
+
 	// Test that config has reasonable defaults
 	if cfg.Database.Path == "" {
 		t.Error("Database path should have a default value")
 	}
-	
+
 	// The path should end with "conversations.db"
 	if !filepath.IsAbs(cfg.Database.Path) {
 		t.Error("Database path should be absolute")

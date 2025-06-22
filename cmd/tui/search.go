@@ -14,8 +14,6 @@ import (
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/search"
 	"golang.org/x/term"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Remove duplicated styles - now using shared styles from styles.go
@@ -60,29 +58,29 @@ const (
 
 // searchModel is the main model for search TUI
 type searchModel struct {
-	engine           *search.Engine
-	conversations    []*models.Conversation // Conversations from grouped search results
-	list             list.Model
-	textInput        textinput.Model
-	viewport         viewport.Model
-	mode             Mode
-	selected         int
-	width            int
-	height           int
-	query            string
-	conversation     *models.Conversation
-	messages         []*models.Message
-	findQuery        string
-	findActive       bool
-	findMatches      []int // line numbers that match the find query
-	currentMatch     int   // current match index
+	engine        *search.Engine
+	conversations []*models.Conversation // Conversations from grouped search results
+	list          list.Model
+	textInput     textinput.Model
+	viewport      viewport.Model
+	mode          Mode
+	selected      int
+	width         int
+	height        int
+	query         string
+	conversation  *models.Conversation
+	messages      []*models.Message
+	findQuery     string
+	findActive    bool
+	findMatches   []int // line numbers that match the find query
+	currentMatch  int   // current match index
 }
 
 // newSearchModel creates a new search model
 func newSearchModel(engine *search.Engine, results []*models.SearchResult, query string) searchModel {
 	// Group search results by conversation
 	convMap := make(map[int64]*searchConversationItem)
-	
+
 	for _, result := range results {
 		if item, exists := convMap[result.ConversationID]; exists {
 			// Add snippet to existing conversation
@@ -93,7 +91,7 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 			if err != nil {
 				continue // Skip if we can't get conversation details
 			}
-			
+
 			// Create new conversation item
 			convMap[result.ConversationID] = &searchConversationItem{
 				conv:     conv,
@@ -101,7 +99,7 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 			}
 		}
 	}
-	
+
 	// Convert to list items and store conversations
 	items := make([]list.Item, 0, len(convMap))
 	conversations := make([]*models.Conversation, 0, len(convMap))
@@ -168,11 +166,6 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Height = msg.Height - 3
 
 	case tea.KeyMsg:
-		// Debug to file since TUI clears screen
-		if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-			fmt.Fprintf(f, "DEBUG: KeyMsg='%s' mode=%d\n", msg.String(), m.mode)
-			f.Close()
-		}
 		switch m.mode {
 		case ModeList:
 			// *** FIX: Check if the list is filtering before handling keys ***
@@ -205,7 +198,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.findMatches = nil
 						m.currentMatch = 0
 						m.findActive = false
-						
+
 						// Set content and go to top
 						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
 						m.viewport.GotoTop()
@@ -255,11 +248,6 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case ModeConversation:
-			// Debug to file
-			if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-				fmt.Fprintf(f, "DEBUG: ModeConversation - findActive=%v\n", m.findActive)
-				f.Close()
-			}
 			if m.findActive {
 				switch msg.String() {
 				case "enter":
@@ -271,15 +259,10 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.viewport.SetYOffset(m.findMatches[0])
 						}
 						// Stay in find mode for n/N navigation
-						m.findActive = false  // Just blur text input
+						m.findActive = false // Just blur text input
 						m.textInput.Blur()
 					}
 				case "esc":
-					// Debug to file
-					if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-						fmt.Fprintf(f, "DEBUG: ESC in find mode - clearing find and staying in conversation\n")
-						f.Close()
-					}
 					m.findActive = false
 					m.findQuery = ""
 					m.findMatches = nil
@@ -348,7 +331,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
 	}
-	
+
 	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
@@ -388,7 +371,7 @@ func (m searchModel) View() string {
 			findBar = TitleStyle.Render("Find: ") + m.textInput.View() + "\n"
 		} else if m.findQuery != "" {
 			if len(m.findMatches) > 0 {
-				findBar = HelpStyle.Render(fmt.Sprintf("Found %d matches for '%s' • Match %d/%d • n: next • N: prev", 
+				findBar = HelpStyle.Render(fmt.Sprintf("Found %d matches for '%s' • Match %d/%d • n: next • N: prev",
 					len(m.findMatches), m.findQuery, m.currentMatch+1, len(m.findMatches))) + "\n"
 			} else {
 				findBar = HelpStyle.Render(fmt.Sprintf("No matches found for '%s' • Press / to search again", m.findQuery)) + "\n"
@@ -401,120 +384,26 @@ func (m searchModel) View() string {
 }
 
 // renderDetail renders the detail view for a search result
-func (m searchModel) renderDetail(result *models.SearchResult) string {
-	var sb strings.Builder
-
-	// Header
-	sb.WriteString(HeaderStyle.Render("Search Result Details"))
-	sb.WriteString("\n\n")
-
-	// Conversation info
-	sb.WriteString(ConversationStyle.Bold(true).Render("Conversation: "))
-	sb.WriteString(fmt.Sprintf("%s (ID: %d)\n", result.ConversationName, result.ConversationID))
-
-	// Message info
-	sb.WriteString(ConversationStyle.Bold(true).Render("Sender: "))
-	caser := cases.Title(language.English)
-	sb.WriteString(fmt.Sprintf("%s\n", caser.String(result.Sender)))
-
-	sb.WriteString(ConversationStyle.Bold(true).Render("Date: "))
-	sb.WriteString(DateStyle.Render(result.CreatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString("\n\n")
-
-	// Full message with context
-	sb.WriteString(ConversationStyle.Bold(true).Render("Message Context:"))
-	sb.WriteString("\n")
-	sb.WriteString(strings.Repeat("─", m.width))
-	sb.WriteString("\n")
-
-	// Get context messages
-	messages, err := m.getMessageContext(result, 3)
-	if err == nil {
-		for _, msg := range messages {
-			if msg.UUID == result.MessageUUID {
-				// Highlight the found message
-				caser := cases.Title(language.English)
-				sb.WriteString(SelectedStyle.Render(fmt.Sprintf("[%s] %s",
-					msg.CreatedAt.Format("15:04"),
-					caser.String(msg.Sender))))
-				sb.WriteString("\n")
-				text := strings.TrimSpace(msg.Text)
-				if len(text) > 500 {
-					text = text[:497] + "..."
-				}
-				sb.WriteString(SelectedStyle.Render(text))
-			} else {
-				// Regular message
-				caser := cases.Title(language.English)
-				sb.WriteString(fmt.Sprintf("[%s] %s\n",
-					msg.CreatedAt.Format("15:04"),
-					caser.String(msg.Sender)))
-				text := strings.TrimSpace(msg.Text)
-				if len(text) > 200 {
-					text = text[:197] + "..."
-				}
-				sb.WriteString(SnippetStyle.Render(text))
-			}
-			sb.WriteString("\n\n")
-		}
-	}
-
-	return sb.String()
-}
-
-// getMessageContext retrieves messages around the found message
-func (m searchModel) getMessageContext(result *models.SearchResult, contextLines int) ([]*models.Message, error) {
-	// Get all messages for the conversation
-	_, messages, err := m.engine.GetConversation(result.ConversationID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the target message index
-	targetIdx := -1
-	for i, msg := range messages {
-		if msg.UUID == result.MessageUUID {
-			targetIdx = i
-			break
-		}
-	}
-
-	if targetIdx == -1 {
-		return nil, fmt.Errorf("message not found")
-	}
-
-	// Calculate range
-	start := targetIdx - contextLines
-	if start < 0 {
-		start = 0
-	}
-	end := targetIdx + contextLines + 1
-	if end > len(messages) {
-		end = len(messages)
-	}
-
-	return messages[start:end], nil
-}
 
 // findInConversation searches for a query in the conversation and returns line numbers of matches
 func (m searchModel) findInConversation(query string) []int {
 	if m.conversation == nil || m.messages == nil || query == "" {
 		return nil
 	}
-	
+
 	// Generate the conversation text to search through
 	content := RenderConversation(m.conversation, m.messages, m.width)
 	lines := strings.Split(content, "\n")
-	
+
 	var matches []int
 	queryLower := strings.ToLower(query)
-	
+
 	for i, line := range lines {
 		if strings.Contains(strings.ToLower(line), queryLower) {
 			matches = append(matches, i)
 		}
 	}
-	
+
 	return matches
 }
 
@@ -523,43 +412,43 @@ func (m searchModel) renderConversationWithHighlights() string {
 	if m.conversation == nil || m.messages == nil {
 		return ""
 	}
-	
+
 	content := RenderConversation(m.conversation, m.messages, m.width)
-	
+
 	// If no find query, return content as-is
 	if m.findQuery == "" {
 		return content
 	}
-	
+
 	// Highlight all instances of the find query
 	queryLower := strings.ToLower(m.findQuery)
 	lines := strings.Split(content, "\n")
-	
+
 	for i, line := range lines {
 		lineLower := strings.ToLower(line)
 		if strings.Contains(lineLower, queryLower) {
 			// Find and highlight all instances in this line
 			start := 0
 			var highlightedLine strings.Builder
-			
+
 			for {
 				idx := strings.Index(lineLower[start:], queryLower)
 				if idx == -1 {
 					highlightedLine.WriteString(line[start:])
 					break
 				}
-				
+
 				actualIdx := start + idx
 				highlightedLine.WriteString(line[start:actualIdx])
 				matchText := line[actualIdx : actualIdx+len(m.findQuery)]
 				highlightedLine.WriteString(FindHighlightStyle.Render(matchText))
 				start = actualIdx + len(m.findQuery)
 			}
-			
+
 			lines[i] = highlightedLine.String()
 		}
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -578,5 +467,5 @@ func openURL(url string) {
 		cmd = "xdg-open"
 	}
 	args = append(args, url)
-	exec.Command(cmd, args...).Start()
+	_ = exec.Command(cmd, args...).Start()
 }

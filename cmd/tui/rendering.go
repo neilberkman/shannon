@@ -10,7 +10,7 @@ import (
 )
 
 // RenderConversation renders the full conversation view with plain text (debugging hang)
-// This is shared between browse and search models  
+// This is shared between browse and search models
 func RenderConversation(conversation *models.Conversation, messages []*models.Message, width int) string {
 	// DEBUG: Use plain text until we find the real hang
 	return renderConversationPlain(conversation, messages, width)

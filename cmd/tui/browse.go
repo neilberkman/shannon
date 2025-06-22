@@ -50,7 +50,7 @@ type browseModel struct {
 // newBrowseModel creates a new browse model
 func newBrowseModel(engine *search.Engine) browseModel {
 	// Get all conversations
-	conversations, _ := engine.GetAllConversations(100, 0)
+	conversations, _ := engine.GetAllConversations(10000, 0)
 
 	// Convert to list items
 	items := make([]list.Item, len(conversations))
@@ -119,7 +119,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if query != "" {
 						opts := search.SearchOptions{
 							Query:     query,
-							Limit:     100,
+							Limit:     1000,
 							SortBy:    "relevance",
 							SortOrder: "desc",
 						}
@@ -168,6 +168,18 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.viewport.GotoTop()
 						}
 					}
+				case "g":
+					// Jump to beginning
+					m.list.Select(0)
+				case "G":
+					// Jump to end
+					m.list.Select(len(m.conversations) - 1)
+				case "home":
+					// Jump to beginning
+					m.list.Select(0)
+				case "end":
+					// Jump to end
+					m.list.Select(len(m.conversations) - 1)
 				default:
 					list, cmd := m.list.Update(msg)
 					m.list = list
@@ -206,7 +218,7 @@ func (m browseModel) View() string {
 		content := m.list.View()
 
 		// Help
-		help := HelpStyle.Render("↑/↓: navigate • enter: view • /: search • q: quit")
+		help := HelpStyle.Render("↑/↓: navigate • g/G: jump to top/bottom • enter: view • /: search • q: quit")
 
 		return searchBar + content + "\n" + help
 

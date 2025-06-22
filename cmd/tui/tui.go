@@ -44,7 +44,7 @@ func newMainModel(engine *search.Engine, initialQuery string, watchFiles bool) m
 		// Start with search view
 		opts := search.SearchOptions{
 			Query:     initialQuery,
-			Limit:     100,
+			Limit:     1000,
 			SortBy:    "relevance",
 			SortOrder: "desc",
 		}

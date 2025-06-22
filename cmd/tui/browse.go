@@ -61,7 +61,7 @@ func newBrowseModel(engine *search.Engine) browseModel {
 	delegate.Styles.SelectedTitle = SelectedStyle
 	delegate.Styles.SelectedDesc = SelectedStyle
 
-	l := list.New(items, delegate, 0, 0)
+	l := list.New(items, delegate, 80, 20) // Set reasonable default size
 	l.Title = "Browse Conversations"
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()

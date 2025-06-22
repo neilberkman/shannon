@@ -100,7 +100,7 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 	delegate.Styles.SelectedTitle = SelectedStyle
 	delegate.Styles.SelectedDesc = SelectedStyle
 
-	l := list.New(items, delegate, 0, 0)
+	l := list.New(items, delegate, 80, 24) // Set reasonable default size
 	l.Title = fmt.Sprintf("Search Results for: %s", query)
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()

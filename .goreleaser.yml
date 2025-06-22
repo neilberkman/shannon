@@ -137,45 +137,45 @@ nfpms:
       - src: CHANGELOG.md
         dst: /usr/share/doc/shannon/CHANGELOG.md
 
-dockers:
-  - image_templates:
-      - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
-      - "ghcr.io/neilberkman/shannon:latest-amd64"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/amd64
-      - --label=org.opencontainers.image.title={{ .ProjectName }}
-      - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
-      - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
-      - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-  - image_templates:
-      - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
-      - "ghcr.io/neilberkman/shannon:latest-arm64"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/arm64
-      - --label=org.opencontainers.image.title={{ .ProjectName }}
-      - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
-      - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
-      - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-
-docker_manifests:
-  - name_template: "ghcr.io/neilberkman/shannon:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
-      - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/neilberkman/shannon:latest"
-    image_templates:
-      - "ghcr.io/neilberkman/shannon:latest-amd64"
-      - "ghcr.io/neilberkman/shannon:latest-arm64"
+# # dockers:
+# #  - image_templates:
+#       - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
+#       - "ghcr.io/neilberkman/shannon:latest-amd64"
+#     dockerfile: Dockerfile
+#     use: buildx
+#     build_flag_templates:
+#       - --platform=linux/amd64
+#       - --label=org.opencontainers.image.title={{ .ProjectName }}
+#       - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
+#       - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
+#       - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
+#       - --label=org.opencontainers.image.version={{ .Version }}
+#       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+#       - --label=org.opencontainers.image.revision={{ .FullCommit }}
+#   - image_templates:
+#       - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
+#       - "ghcr.io/neilberkman/shannon:latest-arm64"
+#     dockerfile: Dockerfile
+#     use: buildx
+#     build_flag_templates:
+#       - --platform=linux/arm64
+#       - --label=org.opencontainers.image.title={{ .ProjectName }}
+#       - --label=org.opencontainers.image.description=Advanced search and analysis tool for Claude conversation exports
+#       - --label=org.opencontainers.image.url=https://github.com/neilberkman/shannon
+#       - --label=org.opencontainers.image.source=https://github.com/neilberkman/shannon
+#       - --label=org.opencontainers.image.version={{ .Version }}
+#       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+#       - --label=org.opencontainers.image.revision={{ .FullCommit }}
+# 
+# # docker_manifests:
+#   - name_template: "ghcr.io/neilberkman/shannon:{{ .Version }}"
+#     image_templates:
+#       - "ghcr.io/neilberkman/shannon:{{ .Version }}-amd64"
+#       - "ghcr.io/neilberkman/shannon:{{ .Version }}-arm64"
+#   - name_template: "ghcr.io/neilberkman/shannon:latest"
+#     image_templates:
+#       - "ghcr.io/neilberkman/shannon:latest-amd64"
+#       - "ghcr.io/neilberkman/shannon:latest-arm64"
 
 # snapcrafts:
 #   - name: shannon

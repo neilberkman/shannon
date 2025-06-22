@@ -1,129 +1,94 @@
 package rendering
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDetectTerminalCapabilities(t *testing.T) {
 	tests := []struct {
 		name                  string
-		setupEnv              func()
+		termProgram           string
+		term                  string
+		kittyWindowID         string
 		expectedTerminalType  string
 		expectedHyperlinks    bool
 		expectedGraphics      bool
 		expectedAdvancedInput bool
 	}{
 		{
-			name: "Ghostty terminal",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-				os.Unsetenv("KITTY_WINDOW_ID")
-			},
+			name:                  "Ghostty terminal",
+			termProgram:           "ghostty",
 			expectedTerminalType:  "ghostty",
 			expectedHyperlinks:    true,
 			expectedGraphics:      true,
 			expectedAdvancedInput: true,
 		},
 		{
-			name: "Kitty terminal",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "kitty")
-				os.Unsetenv("KITTY_WINDOW_ID")
-			},
+			name:                  "Kitty terminal",
+			termProgram:           "kitty",
 			expectedTerminalType:  "kitty",
 			expectedHyperlinks:    true,
 			expectedGraphics:      true,
 			expectedAdvancedInput: true,
 		},
 		{
-			name: "Kitty via KITTY_WINDOW_ID",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("TERM")
-				os.Setenv("KITTY_WINDOW_ID", "1")
-			},
+			name:                  "Kitty via KITTY_WINDOW_ID",
+			kittyWindowID:         "1",
 			expectedTerminalType:  "",
 			expectedHyperlinks:    true,
 			expectedGraphics:      true,
 			expectedAdvancedInput: true,
 		},
 		{
-			name: "WezTerm terminal",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "wezterm")
-				os.Unsetenv("KITTY_WINDOW_ID")
-			},
+			name:                  "WezTerm terminal",
+			termProgram:           "wezterm",
 			expectedTerminalType:  "wezterm",
 			expectedHyperlinks:    true,
 			expectedGraphics:      true,
 			expectedAdvancedInput: true,
 		},
 		{
-			name: "iTerm2 terminal",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "iTerm.app")
-				os.Unsetenv("KITTY_WINDOW_ID")
-			},
+			name:                  "iTerm2 terminal",
+			termProgram:           "iTerm.app",
 			expectedTerminalType:  "iTerm.app",
 			expectedHyperlinks:    true,
 			expectedGraphics:      true,
 			expectedAdvancedInput: false,
 		},
 		{
-			name: "VS Code terminal",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "vscode")
-				os.Unsetenv("KITTY_WINDOW_ID")
-			},
+			name:                  "VS Code terminal",
+			termProgram:           "vscode",
 			expectedTerminalType:  "vscode",
 			expectedHyperlinks:    true,
 			expectedGraphics:      false,
 			expectedAdvancedInput: false,
 		},
 		{
-			name: "xterm-based terminal",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "xterm-256color")
-			},
+			name:                  "xterm-based terminal",
+			term:                  "xterm-256color",
 			expectedTerminalType:  "xterm-256color",
 			expectedHyperlinks:    true,
 			expectedGraphics:      false,
 			expectedAdvancedInput: false,
 		},
 		{
-			name: "basic terminal",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "xterm")
-			},
+			name:                  "basic terminal",
+			term:                  "xterm",
 			expectedTerminalType:  "xterm",
 			expectedHyperlinks:    true,
 			expectedGraphics:      false,
 			expectedAdvancedInput: false,
 		},
 		{
-			name: "unknown terminal",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "unknown")
-			},
+			name:                  "unknown terminal",
+			term:                  "unknown",
 			expectedTerminalType:  "unknown",
 			expectedHyperlinks:    false,
 			expectedGraphics:      false,
 			expectedAdvancedInput: false,
 		},
 		{
-			name: "no terminal info",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Unsetenv("TERM")
-			},
+			name:                  "no terminal info",
 			expectedTerminalType:  "",
 			expectedHyperlinks:    false,
 			expectedGraphics:      false,
@@ -133,15 +98,24 @@ func TestDetectTerminalCapabilities(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original environment
-			origTermProgram := os.Getenv("TERM_PROGRAM")
-			origTerm := os.Getenv("TERM")
-			origKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
+			// t.Setenv automatically restores environment after test
+			// Always set all environment variables to ensure clean state
+			if tt.termProgram != "" {
+				t.Setenv("TERM_PROGRAM", tt.termProgram)
+			} else {
+				t.Setenv("TERM_PROGRAM", "")
+			}
+			if tt.term != "" {
+				t.Setenv("TERM", tt.term)
+			} else {
+				t.Setenv("TERM", "")
+			}
+			if tt.kittyWindowID != "" {
+				t.Setenv("KITTY_WINDOW_ID", tt.kittyWindowID)
+			} else {
+				t.Setenv("KITTY_WINDOW_ID", "")
+			}
 
-			// Setup test environment
-			tt.setupEnv()
-
-			// Run test
 			caps := DetectTerminalCapabilities()
 
 			if caps.TerminalType != tt.expectedTerminalType {
@@ -159,80 +133,46 @@ func TestDetectTerminalCapabilities(t *testing.T) {
 			if caps.SupportsAdvancedInput != tt.expectedAdvancedInput {
 				t.Errorf("DetectTerminalCapabilities().SupportsAdvancedInput = %t, want %t", caps.SupportsAdvancedInput, tt.expectedAdvancedInput)
 			}
-
-			// Restore original environment
-			if origTermProgram != "" {
-				os.Setenv("TERM_PROGRAM", origTermProgram)
-			} else {
-				os.Unsetenv("TERM_PROGRAM")
-			}
-			if origTerm != "" {
-				os.Setenv("TERM", origTerm)
-			} else {
-				os.Unsetenv("TERM")
-			}
-			if origKittyWindowID != "" {
-				os.Setenv("KITTY_WINDOW_ID", origKittyWindowID)
-			} else {
-				os.Unsetenv("KITTY_WINDOW_ID")
-			}
 		})
 	}
 }
 
 func TestIsHyperlinksSupported(t *testing.T) {
 	tests := []struct {
-		name     string
-		setupEnv func()
-		expected bool
+		name        string
+		termProgram string
+		term        string
+		expected    bool
 	}{
 		{
-			name: "Ghostty supports hyperlinks",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-			},
-			expected: true,
+			name:        "Ghostty supports hyperlinks",
+			termProgram: "ghostty",
+			expected:    true,
 		},
 		{
-			name: "Unknown terminal doesn't support hyperlinks",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "dumb")
-			},
+			name:     "Unknown terminal doesn't support hyperlinks",
+			term:     "dumb",
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original environment
-			origTermProgram := os.Getenv("TERM_PROGRAM")
-			origTerm := os.Getenv("TERM")
-			origKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
-
-			tt.setupEnv()
+			if tt.termProgram != "" {
+				t.Setenv("TERM_PROGRAM", tt.termProgram)
+			} else {
+				t.Setenv("TERM_PROGRAM", "")
+			}
+			if tt.term != "" {
+				t.Setenv("TERM", tt.term)
+			} else {
+				t.Setenv("TERM", "")
+			}
+			t.Setenv("KITTY_WINDOW_ID", "")
 
 			result := IsHyperlinksSupported()
 			if result != tt.expected {
 				t.Errorf("IsHyperlinksSupported() = %t, want %t", result, tt.expected)
-			}
-
-			// Restore original environment
-			if origTermProgram != "" {
-				os.Setenv("TERM_PROGRAM", origTermProgram)
-			} else {
-				os.Unsetenv("TERM_PROGRAM")
-			}
-			if origTerm != "" {
-				os.Setenv("TERM", origTerm)
-			} else {
-				os.Unsetenv("TERM")
-			}
-			if origKittyWindowID != "" {
-				os.Setenv("KITTY_WINDOW_ID", origKittyWindowID)
-			} else {
-				os.Unsetenv("KITTY_WINDOW_ID")
 			}
 		})
 	}
@@ -240,55 +180,35 @@ func TestIsHyperlinksSupported(t *testing.T) {
 
 func TestIsGraphicsSupported(t *testing.T) {
 	tests := []struct {
-		name     string
-		setupEnv func()
-		expected bool
+		name        string
+		termProgram string
+		expected    bool
 	}{
 		{
-			name: "Ghostty supports graphics",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-			},
-			expected: true,
+			name:        "Ghostty supports graphics",
+			termProgram: "ghostty",
+			expected:    true,
 		},
 		{
-			name: "VS Code doesn't support graphics",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "vscode")
-			},
-			expected: false,
+			name:        "VS Code doesn't support graphics",
+			termProgram: "vscode",
+			expected:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original environment
-			origTermProgram := os.Getenv("TERM_PROGRAM")
-			origTerm := os.Getenv("TERM")
-			origKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
-
-			tt.setupEnv()
+			if tt.termProgram != "" {
+				t.Setenv("TERM_PROGRAM", tt.termProgram)
+			} else {
+				t.Setenv("TERM_PROGRAM", "")
+			}
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
 
 			result := IsGraphicsSupported()
 			if result != tt.expected {
 				t.Errorf("IsGraphicsSupported() = %t, want %t", result, tt.expected)
-			}
-
-			// Restore original environment
-			if origTermProgram != "" {
-				os.Setenv("TERM_PROGRAM", origTermProgram)
-			} else {
-				os.Unsetenv("TERM_PROGRAM")
-			}
-			if origTerm != "" {
-				os.Setenv("TERM", origTerm)
-			} else {
-				os.Unsetenv("TERM")
-			}
-			if origKittyWindowID != "" {
-				os.Setenv("KITTY_WINDOW_ID", origKittyWindowID)
-			} else {
-				os.Unsetenv("KITTY_WINDOW_ID")
 			}
 		})
 	}
@@ -296,15 +216,14 @@ func TestIsGraphicsSupported(t *testing.T) {
 
 func TestGetTerminalInfo(t *testing.T) {
 	tests := []struct {
-		name     string
-		setupEnv func()
-		contains []string
+		name        string
+		termProgram string
+		term        string
+		contains    []string
 	}{
 		{
-			name: "Ghostty terminal info",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-			},
+			name:        "Ghostty terminal info",
+			termProgram: "ghostty",
 			contains: []string{
 				"Terminal: ghostty",
 				"supports:",
@@ -314,10 +233,8 @@ func TestGetTerminalInfo(t *testing.T) {
 			},
 		},
 		{
-			name: "VS Code terminal info",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "vscode")
-			},
+			name:        "VS Code terminal info",
+			termProgram: "vscode",
 			contains: []string{
 				"Terminal: vscode",
 				"supports:",
@@ -326,11 +243,7 @@ func TestGetTerminalInfo(t *testing.T) {
 		},
 		{
 			name: "Basic terminal info",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "dumb")
-			},
+			term: "dumb",
 			contains: []string{
 				"Terminal: dumb",
 			},
@@ -339,12 +252,17 @@ func TestGetTerminalInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original environment
-			origTermProgram := os.Getenv("TERM_PROGRAM")
-			origTerm := os.Getenv("TERM")
-			origKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
-
-			tt.setupEnv()
+			if tt.termProgram != "" {
+				t.Setenv("TERM_PROGRAM", tt.termProgram)
+			} else {
+				t.Setenv("TERM_PROGRAM", "")
+			}
+			if tt.term != "" {
+				t.Setenv("TERM", tt.term)
+			} else {
+				t.Setenv("TERM", "")
+			}
+			t.Setenv("KITTY_WINDOW_ID", "")
 
 			result := GetTerminalInfo()
 
@@ -352,23 +270,6 @@ func TestGetTerminalInfo(t *testing.T) {
 				if !containsStringSimple(result, expectedSubstring) {
 					t.Errorf("GetTerminalInfo() result %q does not contain expected substring %q", result, expectedSubstring)
 				}
-			}
-
-			// Restore original environment
-			if origTermProgram != "" {
-				os.Setenv("TERM_PROGRAM", origTermProgram)
-			} else {
-				os.Unsetenv("TERM_PROGRAM")
-			}
-			if origTerm != "" {
-				os.Setenv("TERM", origTerm)
-			} else {
-				os.Unsetenv("TERM")
-			}
-			if origKittyWindowID != "" {
-				os.Setenv("KITTY_WINDOW_ID", origKittyWindowID)
-			} else {
-				os.Unsetenv("KITTY_WINDOW_ID")
 			}
 		})
 	}
@@ -393,47 +294,27 @@ func containsStringSimple(s, substr string) bool {
 
 // Test that the terminal type precedence works correctly
 func TestTerminalTypePrecedence(t *testing.T) {
-	// Save original environment
-	origTermProgram := os.Getenv("TERM_PROGRAM")
-	origTerm := os.Getenv("TERM")
-	origKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
+	t.Run("TERM_PROGRAM takes precedence over TERM", func(t *testing.T) {
+		t.Setenv("TERM_PROGRAM", "ghostty")
+		t.Setenv("TERM", "xterm")
+		t.Setenv("KITTY_WINDOW_ID", "")
 
-	defer func() {
-		// Restore original environment
-		if origTermProgram != "" {
-			os.Setenv("TERM_PROGRAM", origTermProgram)
-		} else {
-			os.Unsetenv("TERM_PROGRAM")
+		caps := DetectTerminalCapabilities()
+
+		if caps.TerminalType != "ghostty" {
+			t.Errorf("Expected TERM_PROGRAM to take precedence, got TerminalType = %q", caps.TerminalType)
 		}
-		if origTerm != "" {
-			os.Setenv("TERM", origTerm)
-		} else {
-			os.Unsetenv("TERM")
+	})
+
+	t.Run("fallback to TERM when TERM_PROGRAM not set", func(t *testing.T) {
+		t.Setenv("TERM_PROGRAM", "")
+		t.Setenv("TERM", "xterm-256color")
+		t.Setenv("KITTY_WINDOW_ID", "")
+
+		caps := DetectTerminalCapabilities()
+
+		if caps.TerminalType != "xterm-256color" {
+			t.Errorf("Expected fallback to TERM, got TerminalType = %q", caps.TerminalType)
 		}
-		if origKittyWindowID != "" {
-			os.Setenv("KITTY_WINDOW_ID", origKittyWindowID)
-		} else {
-			os.Unsetenv("KITTY_WINDOW_ID")
-		}
-	}()
-
-	// TERM_PROGRAM should take precedence over TERM
-	os.Setenv("TERM_PROGRAM", "ghostty")
-	os.Setenv("TERM", "xterm")
-
-	caps := DetectTerminalCapabilities()
-
-	if caps.TerminalType != "ghostty" {
-		t.Errorf("Expected TERM_PROGRAM to take precedence, got TerminalType = %q", caps.TerminalType)
-	}
-
-	// When TERM_PROGRAM is not set, should fall back to TERM
-	os.Unsetenv("TERM_PROGRAM")
-	os.Setenv("TERM", "xterm-256color")
-
-	caps = DetectTerminalCapabilities()
-
-	if caps.TerminalType != "xterm-256color" {
-		t.Errorf("Expected fallback to TERM, got TerminalType = %q", caps.TerminalType)
-	}
+	})
 }

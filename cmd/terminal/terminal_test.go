@@ -16,7 +16,7 @@ func TestTerminalCommand(t *testing.T) {
 		{
 			name: "Ghostty terminal detection",
 			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
+				// Will be handled by t.Setenv in test
 			},
 			contains: []string{
 				"Terminal Information:",
@@ -31,9 +31,7 @@ func TestTerminalCommand(t *testing.T) {
 		{
 			name: "Basic terminal detection",
 			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "dumb")
+				// Will be handled by t.Setenv in test
 			},
 			contains: []string{
 				"Terminal Information:",
@@ -49,8 +47,17 @@ func TestTerminalCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup environment
-			tt.setupEnv()
+			// Setup environment using t.Setenv
+			switch tt.name {
+			case "Ghostty terminal detection":
+				t.Setenv("TERM_PROGRAM", "ghostty")
+				t.Setenv("TERM", "")
+				t.Setenv("KITTY_WINDOW_ID", "")
+			case "Basic terminal detection":
+				t.Setenv("TERM_PROGRAM", "")
+				t.Setenv("KITTY_WINDOW_ID", "")
+				t.Setenv("TERM", "dumb")
+			}
 
 			// Run the terminal command directly
 			err := runTerminal(nil, []string{})
@@ -90,7 +97,7 @@ func TestTerminalCommandIntegration(t *testing.T) {
 		{
 			name: "terminal command output",
 			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
+				// Will be handled by t.Setenv in test
 			},
 			contains: []string{
 				"Terminal Information:",
@@ -101,7 +108,10 @@ func TestTerminalCommandIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupEnv()
+			// Setup environment using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
 
 			cmd := exec.Command(binary, "terminal")
 			output, err := cmd.CombinedOutput()

@@ -1,7 +1,6 @@
 package rendering
 
 import (
-	"os"
 	"testing"
 )
 
@@ -10,47 +9,52 @@ func TestMakeHyperlink(t *testing.T) {
 		name        string
 		displayText string
 		targetURL   string
-		setupEnv    func()
+		termProgram string
+		term        string
+		kittyID     string
 		expected    string
 	}{
 		{
 			name:        "hyperlinks supported",
 			displayText: "Click here",
 			targetURL:   "https://example.com",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-			},
-			expected: "\x1b]8;;https://example.com\x1b\\Click here\x1b]8;;\x1b\\",
+			termProgram: "ghostty",
+			expected:    "\x1b]8;;https://example.com\x1b\\Click here\x1b]8;;\x1b\\",
 		},
 		{
 			name:        "hyperlinks not supported",
 			displayText: "Click here",
 			targetURL:   "https://example.com",
-			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "dumb")
-			},
-			expected: "Click here",
+			term:        "dumb",
+			expected:    "Click here",
 		},
 		{
 			name:        "empty URL returns display text",
 			displayText: "No link",
 			targetURL:   "",
-			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
-			},
-			expected: "No link",
+			termProgram: "ghostty",
+			expected:    "No link",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup environment
-			tt.setupEnv()
-
-			// Clear cache for terminal detection
-			// (This would be needed if we cached terminal capabilities)
+			// Setup environment using t.Setenv for proper isolation
+			if tt.termProgram != "" {
+				t.Setenv("TERM_PROGRAM", tt.termProgram)
+			} else {
+				t.Setenv("TERM_PROGRAM", "")
+			}
+			if tt.term != "" {
+				t.Setenv("TERM", tt.term)
+			} else {
+				t.Setenv("TERM", "")
+			}
+			if tt.kittyID != "" {
+				t.Setenv("KITTY_WINDOW_ID", tt.kittyID)
+			} else {
+				t.Setenv("KITTY_WINDOW_ID", "")
+			}
 
 			result := MakeHyperlink(tt.displayText, tt.targetURL)
 			if result != tt.expected {
@@ -61,8 +65,6 @@ func TestMakeHyperlink(t *testing.T) {
 }
 
 func TestMakeHyperlinkWithID(t *testing.T) {
-	// Setup supported terminal
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name        string
@@ -89,6 +91,11 @@ func TestMakeHyperlinkWithID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := MakeHyperlinkWithID(tt.displayText, tt.targetURL, tt.id)
 			if result != tt.expected {
 				t.Errorf("MakeHyperlinkWithID() = %q, want %q", result, tt.expected)
@@ -98,8 +105,6 @@ func TestMakeHyperlinkWithID(t *testing.T) {
 }
 
 func TestAutoLinkText(t *testing.T) {
-	// Setup supported terminal
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name     string
@@ -140,6 +145,11 @@ func TestAutoLinkText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := AutoLinkText(tt.input)
 
 			for _, expectedSubstring := range tt.contains {
@@ -152,9 +162,10 @@ func TestAutoLinkText(t *testing.T) {
 }
 
 func TestAutoLinkTextUnsupportedTerminal(t *testing.T) {
-	// Setup unsupported terminal
-	os.Unsetenv("TERM_PROGRAM")
-	os.Unsetenv("KITTY_WINDOW_ID")
+	// Setup unsupported terminal using t.Setenv
+	t.Setenv("TERM_PROGRAM", "")
+	t.Setenv("KITTY_WINDOW_ID", "")
+	t.Setenv("TERM", "dumb")
 
 	input := "Visit https://example.com for more info"
 	result := AutoLinkText(input)
@@ -166,7 +177,6 @@ func TestAutoLinkTextUnsupportedTerminal(t *testing.T) {
 }
 
 func TestMakeLinkedInProfileLink(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name       string
@@ -192,6 +202,11 @@ func TestMakeLinkedInProfileLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := MakeLinkedInProfileLink(tt.profileURL)
 			if result != tt.expected {
 				t.Errorf("MakeLinkedInProfileLink() = %q, want %q", result, tt.expected)
@@ -201,7 +216,6 @@ func TestMakeLinkedInProfileLink(t *testing.T) {
 }
 
 func TestMakeCompanyWebsiteLink(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name        string
@@ -231,6 +245,11 @@ func TestMakeCompanyWebsiteLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := MakeCompanyWebsiteLink(tt.websiteURL, tt.companyName)
 			if result != tt.expected {
 				t.Errorf("MakeCompanyWebsiteLink() = %q, want %q", result, tt.expected)
@@ -240,7 +259,6 @@ func TestMakeCompanyWebsiteLink(t *testing.T) {
 }
 
 func TestMakeEmailLink(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name     string
@@ -261,6 +279,11 @@ func TestMakeEmailLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := MakeEmailLink(tt.email)
 			if result != tt.expected {
 				t.Errorf("MakeEmailLink() = %q, want %q", result, tt.expected)
@@ -311,7 +334,6 @@ func TestExtractURLsFromText(t *testing.T) {
 }
 
 func TestEnhanceTextWithLinks(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	tests := []struct {
 		name     string
@@ -331,6 +353,11 @@ func TestEnhanceTextWithLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result := EnhanceTextWithLinks(tt.input)
 
 			for _, expectedSubstring := range tt.contains {

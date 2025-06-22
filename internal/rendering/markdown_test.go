@@ -1,7 +1,6 @@
 package rendering
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -386,7 +385,7 @@ func TestRenderFullMessageWithHyperlinks(t *testing.T) {
 		{
 			name: "URLs become hyperlinks in supported terminal",
 			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
+				// Will be handled by t.Setenv in test
 			},
 			text: "Check out https://example.com for more info",
 			expectedContains: []string{
@@ -399,9 +398,7 @@ func TestRenderFullMessageWithHyperlinks(t *testing.T) {
 		{
 			name: "URLs remain plain text in unsupported terminal",
 			setupEnv: func() {
-				os.Unsetenv("TERM_PROGRAM")
-				os.Unsetenv("KITTY_WINDOW_ID")
-				os.Setenv("TERM", "dumb")
+				// Will be handled by t.Setenv in test
 			},
 			text: "Check out https://example.com for more info",
 			expectedContains: []string{
@@ -416,7 +413,7 @@ func TestRenderFullMessageWithHyperlinks(t *testing.T) {
 		{
 			name: "markdown with hyperlinks",
 			setupEnv: func() {
-				os.Setenv("TERM_PROGRAM", "ghostty")
+				// Will be handled by t.Setenv in test
 			},
 			text: "# Header\n\nVisit https://github.com for code",
 			expectedContains: []string{
@@ -429,7 +426,17 @@ func TestRenderFullMessageWithHyperlinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupEnv()
+			// Setup environment based on test case using t.Setenv
+			switch tt.name {
+			case "URLs become hyperlinks in supported terminal", "markdown with hyperlinks":
+				t.Setenv("TERM_PROGRAM", "ghostty")
+				t.Setenv("TERM", "")
+				t.Setenv("KITTY_WINDOW_ID", "")
+			case "URLs remain plain text in unsupported terminal":
+				t.Setenv("TERM_PROGRAM", "")
+				t.Setenv("KITTY_WINDOW_ID", "")
+				t.Setenv("TERM", "dumb")
+			}
 
 			renderer, err := NewMarkdownRenderer(80)
 			if err != nil {
@@ -457,7 +464,6 @@ func TestRenderFullMessageWithHyperlinks(t *testing.T) {
 }
 
 func TestRenderSnippetWithHyperlinks(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
 
 	renderer, err := NewMarkdownRenderer(80)
 	if err != nil {
@@ -483,6 +489,11 @@ func TestRenderSnippetWithHyperlinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup supported terminal using t.Setenv
+			t.Setenv("TERM_PROGRAM", "ghostty")
+			t.Setenv("TERM", "")
+			t.Setenv("KITTY_WINDOW_ID", "")
+
 			result, err := renderer.renderSnippet(tt.text, tt.sender)
 			if err != nil {
 				t.Errorf("renderSnippet() error = %v", err)
@@ -497,7 +508,10 @@ func TestRenderSnippetWithHyperlinks(t *testing.T) {
 }
 
 func TestRenderConversationWithMarkdownAndHyperlinks(t *testing.T) {
-	os.Setenv("TERM_PROGRAM", "ghostty")
+	// Setup supported terminal using t.Setenv
+	t.Setenv("TERM_PROGRAM", "ghostty")
+	t.Setenv("TERM", "")
+	t.Setenv("KITTY_WINDOW_ID", "")
 
 	messages := []MessageForRendering{
 		{

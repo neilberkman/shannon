@@ -1,8 +1,6 @@
 module github.com/neilberkman/shannon
 
-go 1.23.0
-
-toolchain go1.24.4
+go 1.24.4
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0

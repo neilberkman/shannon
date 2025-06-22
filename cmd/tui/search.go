@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/neilberkman/shannon/internal/models"
-	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
 	"golang.org/x/term"
 	"golang.org/x/text/cases"
@@ -28,29 +27,8 @@ func (i searchItem) Title() string {
 }
 
 func (i searchItem) Description() string {
-	// Try to render snippet with markdown formatting
-	renderer, err := rendering.NewMarkdownRenderer(80)
-	if err != nil {
-		// Fallback to plain text
-		return i.getPlainSnippet()
-	}
-
-	rendered, err := renderer.RenderMessage(i.result.Snippet, i.result.Sender, true)
-	if err != nil {
-		// Fallback to plain text
-		return i.getPlainSnippet()
-	}
-
-	// Clean up the rendered text for list display
-	snippet := strings.ReplaceAll(rendered, "\n", " ")
-	snippet = strings.TrimSpace(snippet)
-
-	// Truncate if too long
-	if len(snippet) > 80 {
-		snippet = snippet[:77] + "..."
-	}
-
-	return snippet
+	// Use plain text for performance 
+	return i.getPlainSnippet()
 }
 
 func (i searchItem) getPlainSnippet() string {

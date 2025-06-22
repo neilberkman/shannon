@@ -85,28 +85,28 @@ release:
     💡 **New to Shannon?** Check out the [Quick Start Guide](https://github.com/neilberkman/shannon#quick-start)
     🐛 **Found a bug?** Please [open an issue](https://github.com/neilberkman/shannon/issues/new)
 
-brews:
-  - name: shannon
-    repository:
-      owner: neilberkman
-      name: homebrew-shannon
-    directory: Formula
-    homepage: "https://github.com/neilberkman/shannon"
-    description: "Advanced search and analysis tool for Claude conversation exports"
-    license: "MIT"
-    test: |
-      system "#{bin}/shannon", "--version"
-    install: |
-      bin.install "shannon"
+# brews:
+#   - name: shannon
+#     repository:
+#       owner: neilberkman
+#       name: homebrew-shannon
+#     directory: Formula
+#     homepage: "https://github.com/neilberkman/shannon"
+#     description: "Advanced search and analysis tool for Claude conversation exports"
+#     license: "MIT"
+#     test: |
+#       system "#{bin}/shannon", "--version"
+#     install: |
+#       bin.install "shannon"
 
-scoops:
-  - name: shannon
-    repository:
-      owner: neilberkman
-      name: scoop-shannon
-    homepage: "https://github.com/neilberkman/shannon"
-    description: "Advanced search and analysis tool for Claude conversation exports"
-    license: MIT
+# scoops:
+#   - name: shannon
+#     repository:
+#       owner: neilberkman
+#       name: scoop-shannon
+#     homepage: "https://github.com/neilberkman/shannon"
+#     description: "Advanced search and analysis tool for Claude conversation exports"
+#     license: MIT
 
 nfpms:
   - id: shannon

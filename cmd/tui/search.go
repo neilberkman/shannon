@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -10,6 +11,7 @@ import (
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
+	"golang.org/x/term"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -100,7 +102,14 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 	delegate.Styles.SelectedTitle = SelectedStyle
 	delegate.Styles.SelectedDesc = SelectedStyle
 
-	l := list.New(items, delegate, 80, 24) // Set reasonable default size
+	// Get actual terminal size
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width == 0 || height == 0 {
+		// Fallback to reasonable defaults if terminal size detection fails
+		width, height = 80, 24
+	}
+	
+	l := list.New(items, delegate, width, height-3)
 	l.Title = fmt.Sprintf("Search Results for: %s", query)
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -9,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/search"
+	"golang.org/x/term"
 )
 
 // conversationItem implements list.Item for conversations
@@ -61,7 +63,14 @@ func newBrowseModel(engine *search.Engine) browseModel {
 	delegate.Styles.SelectedTitle = SelectedStyle
 	delegate.Styles.SelectedDesc = SelectedStyle
 
-	l := list.New(items, delegate, 80, 20) // Set reasonable default size
+	// Get actual terminal size
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width == 0 || height == 0 {
+		// Fallback to reasonable defaults if terminal size detection fails
+		width, height = 80, 24
+	}
+	
+	l := list.New(items, delegate, width, height-5) // Leave room for search input
 	l.Title = "Browse Conversations"
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()

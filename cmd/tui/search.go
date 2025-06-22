@@ -167,6 +167,11 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.viewport.GotoTop()
 					}
 				}
+			default:
+				// Forward navigation keys to the list
+				var cmd tea.Cmd
+				m.list, cmd = m.list.Update(msg)
+				return m, cmd
 			}
 
 		case ModeDetail, ModeConversation:

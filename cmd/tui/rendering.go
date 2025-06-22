@@ -44,9 +44,10 @@ func renderConversationPlain(conversation *models.Conversation, messages []*mode
 		}
 		sb.WriteString("\n")
 
-		// Message text
+		// Message text with word wrap
 		text := strings.TrimSpace(msg.Text)
-		sb.WriteString(SnippetStyle.Render(text))
+		wrappedText := simpleWordWrap(text, width-4)
+		sb.WriteString(wrappedText)
 
 		if i < len(messages)-1 {
 			sb.WriteString("\n\n")
@@ -56,4 +57,43 @@ func renderConversationPlain(conversation *models.Conversation, messages []*mode
 	}
 
 	return sb.String()
+}
+
+// simpleWordWrap wraps text to the specified width, preserving line breaks
+func simpleWordWrap(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	lines := strings.Split(text, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if len(line) <= width {
+			result = append(result, line)
+			continue
+		}
+
+		// Wrap long lines
+		words := strings.Fields(line)
+		if len(words) == 0 {
+			result = append(result, line)
+			continue
+		}
+
+		currentLine := words[0]
+		for _, word := range words[1:] {
+			if len(currentLine)+1+len(word) <= width {
+				currentLine += " " + word
+			} else {
+				result = append(result, currentLine)
+				currentLine = word
+			}
+		}
+		if currentLine != "" {
+			result = append(result, currentLine)
+		}
+	}
+
+	return strings.Join(result, "\n")
 }

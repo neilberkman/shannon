@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/spf13/cobra"
@@ -94,8 +95,24 @@ func runRecent(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to scan conversation: %w", err)
 		}
-		// Parse time
-		c.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedStr)
+		// Parse time - try multiple formats
+		var parsedTime time.Time
+
+		// Try ISO 8601 format first (most common)
+		parsedTime, err = time.Parse(time.RFC3339, updatedStr)
+		if err != nil {
+			// Try SQLite datetime format
+			parsedTime, err = time.Parse("2006-01-02 15:04:05", updatedStr)
+			if err != nil {
+				// Try date only format
+				parsedTime, err = time.Parse("2006-01-02", updatedStr)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to parse time '%s': %v\n", updatedStr, err)
+					continue
+				}
+			}
+		}
+		c.UpdatedAt = parsedTime
 		conversations = append(conversations, c)
 	}
 
@@ -138,17 +155,7 @@ func runRecent(cmd *cobra.Command, args []string) error {
 }
 
 func formatRelativeTime(t time.Time) string {
-	duration := time.Since(t)
-
-	if duration < time.Hour {
-		return fmt.Sprintf("%d minutes ago", int(duration.Minutes()))
-	} else if duration < 24*time.Hour {
-		return fmt.Sprintf("%d hours ago", int(duration.Hours()))
-	} else if duration < 7*24*time.Hour {
-		return fmt.Sprintf("%d days ago", int(duration.Hours()/24))
-	}
-
-	return t.Format("Jan 2")
+	return humanize.Time(t)
 }
 
 func truncate(s string, maxLen int) string {

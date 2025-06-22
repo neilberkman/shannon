@@ -3,8 +3,9 @@ package rendering
 import (
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
+	
+	"mvdan.cc/xurls/v2"
 )
 
 // MakeHyperlink creates a terminal hyperlink using OSC 8 sequences
@@ -41,18 +42,24 @@ func MakeHyperlinkWithID(displayText, targetURL, id string) string {
 	return fmt.Sprintf("\x1b]8;%s;%s\x1b\\%s\x1b]8;;\x1b\\", params, targetURL, displayText)
 }
 
-// AutoLinkText automatically converts URLs in text to hyperlinks
+// AutoLinkText automatically converts URLs in text to hyperlinks using xurls
 func AutoLinkText(text string) string {
 	if !IsHyperlinksSupported() {
 		return text
 	}
 	
-	// Regex to match URLs (basic version)
-	urlRegex := regexp.MustCompile(`https?://[^\s<>"{}|\\^` + "`" + `\[\]]+`)
+	// Use xurls for robust URL detection
+	xurlParser := xurls.Relaxed()
 	
-	return urlRegex.ReplaceAllStringFunc(text, func(match string) string {
-		// For auto-linking, use the URL as both display text and target
-		return MakeHyperlink(match, match)
+	return xurlParser.ReplaceAllStringFunc(text, func(match string) string {
+		// Ensure URL has a scheme for proper linking
+		targetURL := match
+		if !strings.HasPrefix(match, "http://") && !strings.HasPrefix(match, "https://") {
+			targetURL = "https://" + match
+		}
+		
+		// For auto-linking, use the original text as display, proper URL as target
+		return MakeHyperlink(match, targetURL)
 	})
 }
 
@@ -105,50 +112,26 @@ func MakeEmailLink(email string) string {
 	return MakeHyperlink(email, "mailto:"+email)
 }
 
-// ExtractURLsFromText extracts all URLs from text for processing
+// ExtractURLsFromText extracts all URLs from text using xurls
 func ExtractURLsFromText(text string) []string {
-	urlRegex := regexp.MustCompile(`https?://[^\s<>"{}|\\^` + "`" + `\[\]]+`)
-	return urlRegex.FindAllString(text, -1)
+	xurlParser := xurls.Relaxed()
+	return xurlParser.FindAllString(text, -1)
 }
 
-// EnhanceTextWithLinks enhances text by making various patterns clickable
+// EnhanceTextWithLinks enhances text by making URLs and email addresses clickable
 func EnhanceTextWithLinks(text string) string {
 	if !IsHyperlinksSupported() {
 		return text
 	}
 	
-	// Auto-link URLs
+	// Auto-link URLs and email addresses using xurls
+	// The Relaxed parser handles both URLs and email addresses
 	text = AutoLinkText(text)
 	
-	// Auto-link email addresses
-	emailRegex := regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`)
-	text = emailRegex.ReplaceAllStringFunc(text, func(email string) string {
-		return MakeEmailLink(email)
-	})
-	
-	// Auto-link GitHub repositories (github.com/user/repo)
-	githubRegex := regexp.MustCompile(`github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)`)
-	text = githubRegex.ReplaceAllStringFunc(text, func(match string) string {
-		// Extract user and repo from the match
-		parts := strings.Split(match, "/")
-		if len(parts) >= 3 {
-			user := parts[1]
-			repo := parts[2]
-			displayText := fmt.Sprintf("%s/%s", user, repo)
-			return MakeHyperlink(displayText, "https://"+match)
-		}
-		return match
-	})
-	
-	// Auto-link file paths (starting with ./ or /)
-	fileRegex := regexp.MustCompile(`(?:^|\s)((?:\./|/)[^\s<>"{}|\\^` + "`" + `\[\]]+)`)
-	text = fileRegex.ReplaceAllStringFunc(text, func(match string) string {
-		trimmed := strings.TrimSpace(match)
-		if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, "/") {
-			return strings.Replace(match, trimmed, MakeHyperlink(trimmed, "file://"+trimmed), 1)
-		}
-		return match
-	})
+	// Note: We removed the fragile regex patterns for GitHub repos and file paths
+	// as they were error-prone. xurls will handle github.com URLs properly anyway.
+	// If you need special handling for file paths, consider using a proper path
+	// parsing library instead of regex.
 	
 	return text
 }

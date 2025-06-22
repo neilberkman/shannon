@@ -74,12 +74,8 @@ func TestTerminalCommand(t *testing.T) {
 // Integration test that runs the binary
 func TestTerminalCommandIntegration(t *testing.T) {
 	// Skip integration test - the unit tests above cover the core functionality
+	// This avoids issues with binary building in CI environments
 	t.Skip("skipping binary integration test - unit tests provide sufficient coverage")
-	
-	// Skip if in short mode
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 
 	// Build the binary for testing
 	binary := "../../shannon-test"

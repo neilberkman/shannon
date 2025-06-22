@@ -13,6 +13,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	golang.org/x/text v0.26.0
 	modernc.org/sqlite v1.28.0
+	mvdan.cc/xurls/v2 v2.6.0
 )
 
 require (
@@ -79,5 +80,4 @@ require (
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
-	mvdan.cc/xurls/v2 v2.6.0 // indirect
 )

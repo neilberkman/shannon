@@ -548,14 +548,54 @@ func containsStringTest(s, substr string) bool {
 	if len(substr) == 0 {
 		return true
 	}
-	if len(s) < len(substr) {
+	
+	// If the substring contains escape sequences, search in the raw string
+	if strings.Contains(substr, "\x1b") {
+		return strings.Contains(s, substr)
+	}
+	
+	// For plain text, strip ANSI codes for more reliable text matching
+	cleaned := stripANSICodes(s)
+	
+	if len(cleaned) < len(substr) {
 		return false
 	}
 
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
+	for i := 0; i <= len(cleaned)-len(substr); i++ {
+		if cleaned[i:i+len(substr)] == substr {
 			return true
 		}
 	}
 	return false
+}
+
+// stripANSICodes removes ANSI escape sequences from a string
+func stripANSICodes(s string) string {
+	var result strings.Builder
+	inEscape := false
+	
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			inEscape = true
+			i++ // skip the '['
+			continue
+		}
+		
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == ']' {
+			inEscape = true
+			i++ // skip the ']'
+			continue
+		}
+		
+		if inEscape {
+			if (s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z') || s[i] == '\\' {
+				inEscape = false
+			}
+			continue
+		}
+		
+		result.WriteByte(s[i])
+	}
+	
+	return result.String()
 }

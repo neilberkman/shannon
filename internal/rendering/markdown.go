@@ -44,10 +44,33 @@ func GetSharedRenderer() *MarkdownRenderer {
 	return sharedRenderer
 }
 
-// NewMarkdownRenderer creates a new markdown renderer (legacy function)
+// NewMarkdownRenderer creates a new markdown renderer with specified width
 func NewMarkdownRenderer(width int) (*MarkdownRenderer, error) {
-	// Use shared renderer for performance
-	return GetSharedRenderer(), nil
+	// Store original width for the struct
+	originalWidth := width
+	
+	// For glamour, use a reasonable minimum but preserve original for the struct
+	glamourWidth := width
+	if glamourWidth <= 0 {
+		glamourWidth = 80
+	}
+
+	// Create renderer with specified width
+	r, err := glamour.NewTermRenderer(
+		glamour.WithStandardStyle("dark"),
+		glamour.WithWordWrap(glamourWidth),
+	)
+	if err != nil {
+		return &MarkdownRenderer{
+			termRenderer: nil,
+			width:        originalWidth,
+		}, nil
+	}
+
+	return &MarkdownRenderer{
+		termRenderer: r,
+		width:        originalWidth,
+	}, nil
 }
 
 // RenderMessage renders a message with markdown formatting

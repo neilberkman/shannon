@@ -291,12 +291,13 @@ func (e *Engine) GetConversation(conversationID int64) (*models.Conversation, []
 		return nil, nil, err
 	}
 
-	// Get messages
+	// Get messages from main branch only (for consistent conversation view)
 	rows, err := e.db.Query(`
-		SELECT id, uuid, conversation_id, sender, text, created_at, parent_id, branch_id, sequence
-		FROM messages
-		WHERE conversation_id = ?
-		ORDER BY created_at ASC
+		SELECT m.id, m.uuid, m.conversation_id, m.sender, m.text, m.created_at, m.parent_id, m.branch_id, m.sequence
+		FROM messages m
+		JOIN branches b ON m.branch_id = b.id
+		WHERE m.conversation_id = ? AND b.name = 'main'
+		ORDER BY m.sequence ASC, m.created_at ASC
 	`, conversationID)
 
 	if err != nil {

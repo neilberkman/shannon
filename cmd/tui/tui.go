@@ -86,6 +86,9 @@ type newExportsFoundMsg struct {
 	count int
 }
 
+// switchToBrowseMsg signals that we want to switch to browse mode
+type switchToBrowseMsg struct{}
+
 // Init initializes the main model
 func (m mainModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -133,6 +136,12 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case newExportsFoundMsg:
 		m.notification = fmt.Sprintf("🆕 Found %d new Claude export(s) in Downloads", msg.count)
 		m.notificationTime = time.Now()
+
+	case switchToBrowseMsg:
+		// Switch from search to browse mode
+		m.currentView = newBrowseModel(m.engine)
+		m.viewType = ViewBrowse
+		return m, nil
 
 	case tea.KeyMsg:
 		// Handle global keybindings

@@ -1,0 +1,83 @@
+DEBUG: KeyMsg='enter' mode=0
+DEBUG: KeyMsg='/' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='f' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='i' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='d' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='enter' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='/' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='p' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='o' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='w' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='e' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='r' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='enter' mode=1
+DEBUG: ModeConversation - findActive=true
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='n' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='N' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='esc' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='g' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='G' mode=1
+DEBUG: ModeConversation - findActive=false
+DEBUG: KeyMsg='esc' mode=1
+DEBUG: ModeConversation - findActive=false

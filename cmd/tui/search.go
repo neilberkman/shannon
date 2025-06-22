@@ -168,6 +168,11 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Height = msg.Height - 3
 
 	case tea.KeyMsg:
+		// Debug to file since TUI clears screen
+		if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+			fmt.Fprintf(f, "DEBUG: KeyMsg='%s' mode=%d\n", msg.String(), m.mode)
+			f.Close()
+		}
 		switch m.mode {
 		case ModeList:
 			// *** FIX: Check if the list is filtering before handling keys ***
@@ -250,6 +255,11 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case ModeConversation:
+			// Debug to file
+			if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+				fmt.Fprintf(f, "DEBUG: ModeConversation - findActive=%v\n", m.findActive)
+				f.Close()
+			}
 			if m.findActive {
 				switch msg.String() {
 				case "enter":
@@ -260,18 +270,23 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if len(m.findMatches) > 0 {
 							m.viewport.SetYOffset(m.findMatches[0])
 						}
+						// Stay in find mode for n/N navigation
+						m.findActive = false  // Just blur text input
+						m.textInput.Blur()
 					}
-					m.findActive = false
-					m.textInput.Blur()
-					// Handle find enter and stay in find mode processing
 				case "esc":
+					// Debug to file
+					if f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+						fmt.Fprintf(f, "DEBUG: ESC in find mode - clearing find and staying in conversation\n")
+						f.Close()
+					}
 					m.findActive = false
 					m.findQuery = ""
 					m.findMatches = nil
 					m.textInput.SetValue("")
 					m.textInput.Blur()
-					skipComponentUpdate = true
-					// ESC in find mode: clear find, stay in conversation - CONSUME EVENT
+					// ESC in find mode: clear find, stay in conversation - RETURN EARLY
+					return m, nil
 				default:
 					ti, cmd := m.textInput.Update(msg)
 					m.textInput = ti
@@ -280,9 +295,18 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Find mode handled - skip conversation mode handlers
 			} else {
 				switch msg.String() {
-				case "q", "esc":
-					// ESC in conversation mode goes back to search results
+				case "q":
 					m.mode = ModeList
+				case "esc":
+					if m.findQuery != "" {
+						// Clear find results and stay in conversation (browser back button)
+						m.findQuery = ""
+						m.findMatches = nil
+						m.currentMatch = 0
+					} else {
+						// Normal conversation mode - go back to search results
+						m.mode = ModeList
+					}
 				case "/", "f":
 					m.findActive = true
 					m.textInput.SetValue("")

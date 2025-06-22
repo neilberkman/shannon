@@ -7,31 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-06-22
+
 ### Added
-- TUI root model pattern for better state management
-- Consolidated shared TUI code (rendering and styles)
-- Simplified branch detection with tree diff approach  
-- Dynamic xargs command using Cobra's Find()
-- Comprehensive error handling and TUI logging
-- Unit tests for config, search, and platform packages
-- Cross-platform directory support
-- Full-text search with SQLite FTS5
-- Multiple export formats (JSON, CSV, Markdown)
-- Interactive TUI for browsing conversations
-- Conversation statistics and analytics
-- Branch detection for conversation trees
-- Advanced search query syntax with boolean operators
-- Pipeline integration with xargs command
+- **In-conversation search** - Find and highlight text within conversations using `/` key
+- **Browser-like navigation** - ESC acts as back button across all TUI modes
+- **Conversation-centric search results** - Search shows conversations instead of individual messages
+- **Smart conversation positioning** - Conversations start at the first message when opened from search
+- **Consistent keyboard shortcuts** - Standard vim-like navigation (g/G for top/bottom, q to quit)
+- **Enhanced TUI functionality** - Major improvements to search and navigation workflow
 
 ### Changed
-- Replaced deprecated strings.Title with golang.org/x/text/cases
-- Improved error handling throughout the codebase
-- Enhanced code modularity and maintainability
+- **Complete TUI workflow overhaul** - Fixed ESC behavior, find functionality, and navigation consistency
+- **Search results architecture** - Converted from message-centric to conversation-centric display
+- **README documentation** - Updated with comprehensive TUI features and keyboard shortcuts
+- **Code organization** - Removed debug logging and cleaned up unused functions
 
 ### Fixed
-- Critical linting issues and error handling
-- Memory leaks in TUI state management
-- Cross-platform compatibility issues
+- **Find functionality** - Fixed broken in-conversation search that wasn't working properly
+- **ESC key behavior** - Implemented proper browser-like back button functionality
+- **Word wrapping** - Fixed broken text display in conversation view
+- **Test failures** - Fixed NewMarkdownRenderer width handling and hyperlink test assertions
+- **Linting issues** - Removed orphaned test files and fixed all golangci-lint warnings
 
 ## [0.1.0] - Initial Release
 

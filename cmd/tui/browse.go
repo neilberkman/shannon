@@ -69,7 +69,7 @@ func newBrowseModel(engine *search.Engine) browseModel {
 		// Fallback to reasonable defaults if terminal size detection fails
 		width, height = 80, 24
 	}
-	
+
 	l := list.New(items, delegate, width, height-5) // Leave room for search input
 	l.Title = "Browse Conversations"
 	l.SetShowHelp(false)

@@ -85,12 +85,12 @@ func TestTerminalCommandIntegration(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Skipf("Cannot build shannon binary for integration test: %v", err)
 	}
-	
+
 	// Verify binary was created and is executable
 	if _, err := os.Stat(binary); err != nil {
 		t.Skipf("Binary not found after build: %v", err)
 	}
-	
+
 	// Clean up binary after test
 	defer func() {
 		if err := os.Remove(binary); err != nil && !os.IsNotExist(err) {

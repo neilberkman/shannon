@@ -108,7 +108,7 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 		// Fallback to reasonable defaults if terminal size detection fails
 		width, height = 80, 24
 	}
-	
+
 	l := list.New(items, delegate, width, height-3)
 	l.Title = fmt.Sprintf("Search Results for: %s", query)
 	l.SetShowHelp(false)

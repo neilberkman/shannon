@@ -2,7 +2,7 @@
 
 A powerful CLI tool for searching through your exported Claude conversation history.
 
-Named after Claude Shannon, the father of information theory, this tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities, rich markdown rendering, and both CLI and TUI interfaces.
+This tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities, rich markdown rendering, and both CLI and TUI interfaces.
 
 > **Note**: This is an unofficial tool not affiliated with Anthropic.
 

@@ -55,19 +55,43 @@ scoop bucket add shannon https://github.com/neilberkman/scoop-shannon
 scoop install shannon
 ```
 
-## Usage
-
-### Discover and Import Claude Exports
-
-First, find your Claude export files:
+## Quick Start
 
 ```bash
-# Auto-discover export files
+# 1. Export your data from https://claude.ai/settings/data-privacy-controls
+# 2. Find and import your conversations
+shannon discover
+shannon import ~/Downloads/claude-export*/conversations.json
+
+# 3. Start searching!
+shannon search "your search term"
+shannon tui  # Interactive browser
+```
+
+## Getting Started
+
+### 1. Export Your Claude Conversations
+
+First, you need to export your conversation data from Claude:
+
+1. Go to [Claude Data Privacy Controls](https://claude.ai/settings/data-privacy-controls)
+2. In the **Data controls** section, click **Export data**
+3. Claude will send you an email with a download link
+4. Download and extract the ZIP file
+
+### 2. Import Your Conversations
+
+Once you have your export file:
+
+```bash
+# Auto-discover export files in common locations
 shannon discover
 
-# Import discovered export
+# Import the conversations (usually named conversations.json)
 shannon import path/to/conversations.json
 ```
+
+## Usage
 
 ### Search
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2025-06-22
+
+### Fixed
+- **CRITICAL**: Fixed data loss bug where incremental imports would delete all existing messages
+  - `INSERT OR REPLACE` was triggering CASCADE DELETE due to new conversation IDs
+  - Now properly checks for existing conversations and uses UPDATE instead
+- Fixed package name mismatch (import -> imports)
+
 ## [0.2.3] - 2025-06-22
 
 ### Added

@@ -157,11 +157,11 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 			INSERT INTO conversations (uuid, name, created_at, updated_at, message_count)
 			VALUES (?, ?, ?, ?, ?)
 		`, conv.UUID, conv.Name, createdAt, updatedAt, len(conv.ChatMessages))
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to insert conversation: %w", err)
 		}
-		
+
 		convID, err = result.LastInsertId()
 		if err != nil {
 			return fmt.Errorf("failed to get conversation ID: %w", err)
@@ -176,12 +176,11 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 			SET name = ?, updated_at = ?, message_count = ?
 			WHERE id = ?
 		`, conv.Name, updatedAt, len(conv.ChatMessages), convID)
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to update conversation: %w", err)
 		}
 	}
-
 
 	// Get or create main branch
 	mainBranchID, err := i.getOrCreateMainBranch(tx, convID)

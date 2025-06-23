@@ -1,6 +1,6 @@
 # Shannon
 
-A powerful CLI tool for searching through your exported AI conversation history.
+A powerful CLI tool for searching through your exported Claude conversation history.
 
 Named after Claude Shannon, the father of information theory, this tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities, rich markdown rendering, and both CLI and TUI interfaces.
 

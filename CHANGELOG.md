@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed search behavior to treat multi-word queries as implicit AND instead of phrase search
+  - `shannon search "machine learning"` now finds documents with both "machine" AND "learning"
+  - Explicit AND/OR/NOT operators still work: `shannon search "python AND django"`
+  - Use quotes for exact phrase search: `shannon search '"exact phrase"'`
+
+### Added
+- Added comprehensive tests for FTS query processing
+
 ## [0.2.4] - 2025-06-22
 
 ### Fixed

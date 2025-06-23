@@ -31,6 +31,11 @@ Named after Claude Shannon, the father of information theory, this tool provides
 search capabilities with advanced query features, preserves conversation threading, and 
 offers both CLI and TUI interfaces for different use cases.
 
+First, export your data from Claude:
+  1. Go to https://claude.ai/settings/data-privacy-controls
+  2. Click "Export data" in the Data controls section
+  3. Download the emailed ZIP file
+
 Quick start:
   shannon discover                    # Find Claude exports
   shannon import conversations.json   # Import an export

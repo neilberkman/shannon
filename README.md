@@ -74,7 +74,7 @@ shannon tui  # Interactive browser
 
 First, you need to export your conversation data from Claude:
 
-1. Go to [Claude Data Privacy Controls](https://claude.ai/settings/data-privacy-controls)
+1. Go to [Claude Data Privacy Controls](https://claude.ai/settings/data-privacy-controls){:target="_blank"}
 2. In the **Data controls** section, click **Export data**
 3. Claude will send you an email with a download link
 4. Download and extract the ZIP file

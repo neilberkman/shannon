@@ -48,9 +48,24 @@ func TestProcessFTSQuery(t *testing.T) {
 			expected: "pyth*",
 		},
 		{
-			name:     "lowercase and treated as word",
+			name:     "lowercase and converted to uppercase",
 			input:    "python and django",
-			expected: "python AND and AND django",
+			expected: "python AND django", // lowercase "and" is converted to uppercase AND
+		},
+		{
+			name:     "lowercase or converted to uppercase",
+			input:    "python or ruby",
+			expected: "python OR ruby",
+		},
+		{
+			name:     "lowercase not converted to uppercase",
+			input:    "python not django",
+			expected: "python NOT django",
+		},
+		{
+			name:     "mixed case operators",
+			input:    "python And django Or ruby",
+			expected: "python And django Or ruby", // only lowercase full words are converted
 		},
 		{
 			name:     "multiple words implicit AND",

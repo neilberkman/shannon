@@ -6,7 +6,7 @@ import (
 
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
-	"github.com/neilberkman/shannon/internal/import"
+	"github.com/neilberkman/shannon/internal/imports"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"github.com/neilberkman/shannon/cmd/artifacts"
 	"github.com/neilberkman/shannon/cmd/discover"
 	"github.com/neilberkman/shannon/cmd/edit"
 	"github.com/neilberkman/shannon/cmd/export"
 	imports "github.com/neilberkman/shannon/cmd/import"
 	"github.com/neilberkman/shannon/cmd/list"
+	"github.com/neilberkman/shannon/cmd/open"
 	"github.com/neilberkman/shannon/cmd/recent"
 	"github.com/neilberkman/shannon/cmd/root"
 	"github.com/neilberkman/shannon/cmd/search"
@@ -31,9 +33,11 @@ func main() {
 	root.RootCmd.Version = version
 
 	// Add subcommands
+	root.RootCmd.AddCommand(artifacts.NewCmd())
 	root.RootCmd.AddCommand(imports.ImportCmd)
 	root.RootCmd.AddCommand(discover.DiscoverCmd)
 	root.RootCmd.AddCommand(list.ListCmd)
+	root.RootCmd.AddCommand(open.OpenCmd)
 	root.RootCmd.AddCommand(recent.RecentCmd)
 	root.RootCmd.AddCommand(search.SearchCmd)
 	root.RootCmd.AddCommand(view.ViewCmd)

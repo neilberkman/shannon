@@ -177,7 +177,7 @@ func (e *Engine) buildSearchQuery(opts SearchOptions) (string, []interface{}) {
 func (e *Engine) processFTSQuery(userQuery string) string {
 	// Handle special characters and operators
 	query := strings.TrimSpace(userQuery)
-	
+
 	// Empty query check
 	if query == "" {
 		return `""`

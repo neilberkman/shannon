@@ -5,8 +5,7 @@ import (
 	"strings"
 
 	"github.com/neilberkman/shannon/internal/models"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
+	"github.com/neilberkman/shannon/internal/rendering"
 )
 
 // RenderConversation renders the full conversation view with plain text (debugging hang)
@@ -33,14 +32,13 @@ func renderConversationPlain(conversation *models.Conversation, messages []*mode
 	// Messages
 	for i, msg := range messages {
 		// Message header
-		caser := cases.Title(language.English)
-		sender := caser.String(msg.Sender)
+		displaySender := rendering.FormatSender(msg.Sender)
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
 
 		if msg.Sender == "human" {
-			sb.WriteString(ConversationStyle.Bold(true).Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
+			sb.WriteString(ConversationStyle.Bold(true).Render(fmt.Sprintf("%s (%s)", displaySender, timestamp)))
 		} else {
-			sb.WriteString(AssistantStyle.Render(fmt.Sprintf("%s (%s)", sender, timestamp)))
+			sb.WriteString(AssistantStyle.Render(fmt.Sprintf("%s (%s)", displaySender, timestamp)))
 		}
 		sb.WriteString("\n")
 

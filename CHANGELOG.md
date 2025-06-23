@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-06-22
+
+### Added
+- Added 'o' key shortcut to open conversations in claude.ai from TUI conversation view
+
+### Changed
+- Changed sender display from "Human"/"Assistant" to "You"/"Claude" for more natural conversation flow
+- DRY: Created shared `FormatSender` function to centralize sender name formatting
+
 ## [0.2.2] - 2025-06-22
 
 ### Fixed

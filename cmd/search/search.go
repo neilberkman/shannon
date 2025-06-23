@@ -15,8 +15,6 @@ import (
 	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
 	"github.com/spf13/cobra"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 var (
@@ -382,8 +380,7 @@ func showMessageContext(database *db.DB, result *models.SearchResult, contextLin
 		}
 
 		timestamp := msg.CreatedAt[:16] // Just date and time
-		caser := cases.Title(language.English)
-		sender := caser.String(msg.Sender)
+		sender := rendering.FormatSender(msg.Sender)
 
 		// Apply markdown rendering if enabled
 		text := msg.Text

@@ -12,6 +12,7 @@ import (
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/rendering"
 	"github.com/neilberkman/shannon/internal/search"
 	"github.com/spf13/cobra"
 )
@@ -212,11 +213,8 @@ func formatMarkdown(conv *models.Conversation, messages []*models.Message) strin
 	for i, msg := range messages {
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
 
-		if msg.Sender == "human" {
-			sb.WriteString(fmt.Sprintf("## Human (%s)\n\n", timestamp))
-		} else {
-			sb.WriteString(fmt.Sprintf("## Assistant (%s)\n\n", timestamp))
-		}
+		displaySender := rendering.FormatSender(msg.Sender)
+		sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", displaySender, timestamp))
 
 		// Handle code blocks in message text
 		text := strings.ReplaceAll(msg.Text, "```", "````")

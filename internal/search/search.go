@@ -125,13 +125,13 @@ func (e *Engine) buildSearchQuery(opts SearchOptions) (string, []interface{}) {
 
 	if opts.StartDate != nil {
 		conditions = append(conditions, fmt.Sprintf("m.created_at >= $%d", argIndex))
-		args = append(args, *opts.StartDate)
+		args = append(args, opts.StartDate.Format("2006-01-02 15:04:05"))
 		argIndex++
 	}
 
 	if opts.EndDate != nil {
 		conditions = append(conditions, fmt.Sprintf("m.created_at <= $%d", argIndex))
-		args = append(args, *opts.EndDate)
+		args = append(args, opts.EndDate.Format("2006-01-02 15:04:05"))
 	}
 
 	// Build final query
@@ -175,9 +175,13 @@ func (e *Engine) processFTSQuery(userQuery string) string {
 		return query
 	}
 
-	// Check for explicit boolean operators (AND, OR, NOT)
+	// Check for explicit boolean operators (AND, OR, NOT) - case insensitive
 	upperQuery := strings.ToUpper(query)
 	if strings.Contains(upperQuery, " AND ") || strings.Contains(upperQuery, " OR ") || strings.Contains(upperQuery, " NOT ") {
+		// Convert to uppercase operators for FTS5
+		query = strings.ReplaceAll(query, " and ", " AND ")
+		query = strings.ReplaceAll(query, " or ", " OR ")
+		query = strings.ReplaceAll(query, " not ", " NOT ")
 		return query
 	}
 

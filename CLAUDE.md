@@ -96,6 +96,12 @@ go build
 
 # Import conversations
 ./shannon import /path/to/conversations.json
+
+# Work with artifacts
+./shannon artifacts list 123                    # List artifacts in conversation
+./shannon artifacts search "python code"        # Search for artifacts
+./shannon artifacts extract 123                 # Extract artifacts to files
+./shannon view 123 --show-artifacts            # View conversation with artifacts
 ```
 
 ## Release Process
@@ -113,6 +119,24 @@ go build
 - Date formatting uses `github.com/dustin/go-humanize`
 - Terminal rendering uses `github.com/charmbracelet/bubbletea`
 - All SQL queries should use parameterized statements
+
+## Artifact Extraction
+
+Shannon can extract and manage artifacts from Claude conversations. Artifacts are special content blocks (code, documents, etc.) that Claude generates.
+
+### Supported Artifact Types
+- Code (`application/vnd.ant.code`) - with language-specific syntax highlighting
+- Markdown (`text/markdown`)
+- HTML (`text/html`)
+- SVG images (`image/svg+xml`)
+- React components (`application/vnd.ant.react`)
+- Mermaid diagrams (`application/vnd.ant.mermaid`)
+
+### Implementation Details
+- Artifacts are extracted on-demand, not during import
+- The `internal/artifacts` package handles all extraction logic
+- The `view` command shows artifacts inline by default
+- Artifacts can be exported to files with appropriate extensions
 
 ## Performance Considerations
 

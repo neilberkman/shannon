@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/neilberkman/shannon/internal/artifacts"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/search"
 	"golang.org/x/term"
@@ -74,6 +75,12 @@ type searchModel struct {
 	findActive    bool
 	findMatches   []int // line numbers that match the find query
 	currentMatch  int   // current match index
+
+	// Artifact support
+	artifacts         map[int64][]*artifacts.Artifact // message ID -> artifacts
+	focusedOnArtifact bool
+	artifactIndex     int // which artifact in current message
+	messageIndex      int // which message we're viewing artifacts for
 }
 
 // newSearchModel creates a new search model
@@ -193,6 +200,9 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.mode = ModeConversation
 						m.selected = m.list.Index()
 
+						// Extract artifacts
+						m.extractArtifacts()
+
 						// Clear any previous find state and go to top
 						m.findQuery = ""
 						m.findMatches = nil
@@ -200,7 +210,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.findActive = false
 
 						// Set content and go to top
-						m.viewport.SetContent(RenderConversation(conv, messages, m.width))
+						m.viewport.SetContent(RenderConversationWithArtifacts(conv, messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
 						m.viewport.GotoTop()
 						m.viewport.SetYOffset(0) // Force to absolute top
 					}
@@ -312,6 +322,33 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "G":
 					// Go to bottom of conversation
 					m.viewport.GotoBottom()
+				case "tab", "a":
+					// Toggle artifact focus
+					if len(m.artifacts) > 0 {
+						m.focusedOnArtifact = !m.focusedOnArtifact
+						// Re-render with new focus state
+						m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
+					}
+				case "s":
+					// Save current artifact if focused
+					if m.focusedOnArtifact {
+						m.saveCurrentArtifact()
+					}
+				case "left", "h":
+					// Previous artifact in message
+					if m.focusedOnArtifact && m.artifactIndex > 0 {
+						m.artifactIndex--
+						m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
+					}
+				case "right", "l":
+					// Next artifact in message
+					if m.focusedOnArtifact {
+						msgID := m.getCurrentMessageWithArtifact()
+						if msgID > 0 && m.artifacts[msgID] != nil && m.artifactIndex < len(m.artifacts[msgID])-1 {
+							m.artifactIndex++
+							m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
+						}
+					}
 				default:
 					vp, cmd := m.viewport.Update(msg)
 					m.viewport = vp
@@ -359,6 +396,12 @@ func (m searchModel) View() string {
 	case ModeConversation:
 		if m.findActive {
 			help = HelpStyle.Render("enter: search • esc: cancel")
+		} else if len(m.artifacts) > 0 {
+			if m.focusedOnArtifact {
+				help = HelpStyle.Render("tab: unfocus • s: save • ←/→: navigate artifacts • esc: back • q: quit")
+			} else {
+				help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev • tab: focus artifact • esc: back • q: quit")
+			}
 		} else {
 			help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev match • esc: back • q: quit")
 		}
@@ -392,7 +435,7 @@ func (m searchModel) findInConversation(query string) []int {
 	}
 
 	// Generate the conversation text to search through
-	content := RenderConversation(m.conversation, m.messages, m.width)
+	content := RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex)
 	lines := strings.Split(content, "\n")
 
 	var matches []int
@@ -413,7 +456,7 @@ func (m searchModel) renderConversationWithHighlights() string {
 		return ""
 	}
 
-	content := RenderConversation(m.conversation, m.messages, m.width)
+	content := RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex)
 
 	// If no find query, return content as-is
 	if m.findQuery == "" {
@@ -468,4 +511,63 @@ func openURL(url string) {
 	}
 	args = append(args, url)
 	_ = exec.Command(cmd, args...).Start()
+}
+
+// extractArtifacts extracts artifacts from the loaded messages
+func (m *searchModel) extractArtifacts() {
+	m.artifacts = make(map[int64][]*artifacts.Artifact)
+	extractor := artifacts.NewExtractor()
+
+	for _, msg := range m.messages {
+		if msg.Sender == "assistant" {
+			msgArtifacts, _ := extractor.ExtractFromMessage(msg)
+			if len(msgArtifacts) > 0 {
+				m.artifacts[msg.ID] = msgArtifacts
+			}
+		}
+	}
+}
+
+// getCurrentMessageWithArtifact returns the ID of the current message that has artifacts
+func (m *searchModel) getCurrentMessageWithArtifact() int64 {
+	// For now, return the first message with artifacts
+	// In a more sophisticated implementation, we'd track which message the user is viewing
+	for _, msg := range m.messages {
+		if m.artifacts[msg.ID] != nil && len(m.artifacts[msg.ID]) > 0 {
+			return msg.ID
+		}
+	}
+	return 0
+}
+
+// saveCurrentArtifact saves the currently focused artifact to a file
+func (m *searchModel) saveCurrentArtifact() {
+	msgID := m.getCurrentMessageWithArtifact()
+	if msgID == 0 || m.artifacts[msgID] == nil || m.artifactIndex >= len(m.artifacts[msgID]) {
+		return
+	}
+
+	artifact := m.artifacts[msgID][m.artifactIndex]
+
+	// Generate filename
+	filename := artifact.Title
+	if filename == "" {
+		filename = fmt.Sprintf("artifact_%d", m.artifactIndex+1)
+	}
+	filename = sanitizeFilename(filename)
+
+	// Add extension
+	ext := artifact.GetFileExtension()
+	if !strings.HasSuffix(filename, ext) {
+		filename += ext
+	}
+
+	// Save to current directory
+	// In a real implementation, you might want to prompt for location
+	err := os.WriteFile(filename, []byte(artifact.Content), 0644)
+	if err != nil {
+		fmt.Printf("Error saving artifact: %v\n", err)
+	} else {
+		fmt.Printf("Saved artifact to: %s\n", filename)
+	}
 }

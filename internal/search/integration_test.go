@@ -140,7 +140,7 @@ func TestSearchWithDateFilters(t *testing.T) {
 			expectedCount: 1, // only msg-3 is within last 15 days
 		},
 		{
-			name:          "with end date filter", 
+			name:          "with end date filter",
 			query:         "python",
 			endDate:       timePtr(time.Now().AddDate(0, 0, -20)),
 			expectedCount: 2, // msg-1 and msg-2 are older than 20 days

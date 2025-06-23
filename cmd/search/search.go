@@ -91,7 +91,7 @@ func init() {
 
 func runSearch(cmd *cobra.Command, args []string) error {
 	query := strings.Join(args, " ")
-	
+
 	// Validate query
 	if strings.TrimSpace(query) == "" {
 		return fmt.Errorf("search query cannot be empty")

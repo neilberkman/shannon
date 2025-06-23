@@ -170,14 +170,23 @@ func (e *Engine) processFTSQuery(userQuery string) string {
 	// Handle special characters and operators
 	query := strings.TrimSpace(userQuery)
 
-	// If query contains FTS5 operators, return as-is
-	if strings.ContainsAny(query, `"*-+`) {
+	// If query already contains FTS5 operators or quotes, return as-is
+	if strings.ContainsAny(query, `"*`) {
 		return query
 	}
 
-	// Otherwise, treat as phrase search for multi-word queries
+	// Check for explicit boolean operators (AND, OR, NOT)
+	upperQuery := strings.ToUpper(query)
+	if strings.Contains(upperQuery, " AND ") || strings.Contains(upperQuery, " OR ") || strings.Contains(upperQuery, " NOT ") {
+		return query
+	}
+
+	// For multi-word queries without explicit operators, treat as implicit AND
+	// This is more intuitive behavior - searching "machine learning" finds documents with both words
 	if strings.Contains(query, " ") {
-		return fmt.Sprintf(`"%s"`, query)
+		// Split on spaces and join with AND
+		words := strings.Fields(query)
+		return strings.Join(words, " AND ")
 	}
 
 	return query

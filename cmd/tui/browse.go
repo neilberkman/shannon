@@ -273,6 +273,12 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.currentMatch = (m.currentMatch - 1 + len(m.findMatches)) % len(m.findMatches)
 						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
 					}
+				case "o":
+					// Open conversation in Claude web interface
+					if m.conversation != nil && m.conversation.UUID != "" {
+						url := fmt.Sprintf("https://claude.ai/chat/%s", m.conversation.UUID)
+						openURL(url)
+					}
 				default:
 					vp, cmd := m.viewport.Update(msg)
 					m.viewport = vp
@@ -326,7 +332,7 @@ func (m browseModel) View() string {
 		if m.findActive {
 			help = HelpStyle.Render("enter: search • esc: cancel")
 		} else {
-			help = HelpStyle.Render("↑/↓: scroll • /f: find • n/N: next/prev match • esc: back • q: quit")
+			help = HelpStyle.Render("↑/↓: scroll • /f: find • n/N: next/prev match • o: open in claude.ai • esc: back • q: quit")
 		}
 
 		return findBar + content + "\n" + help

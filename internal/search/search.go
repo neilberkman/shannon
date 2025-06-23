@@ -42,6 +42,14 @@ func (e *Engine) Search(opts SearchOptions) ([]*models.SearchResult, error) {
 
 	rows, err := e.db.Query(query, args...)
 	if err != nil {
+		// Provide more helpful error messages
+		errStr := err.Error()
+		if strings.Contains(errStr, "syntax error") {
+			return nil, fmt.Errorf("invalid search syntax: %s", opts.Query)
+		}
+		if strings.Contains(errStr, "unknown special query") {
+			return nil, fmt.Errorf("invalid wildcard usage in: %s (hint: wildcards must not be quoted)", opts.Query)
+		}
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
 	defer func() {
@@ -169,9 +177,20 @@ func (e *Engine) buildSearchQuery(opts SearchOptions) (string, []interface{}) {
 func (e *Engine) processFTSQuery(userQuery string) string {
 	// Handle special characters and operators
 	query := strings.TrimSpace(userQuery)
+	
+	// Empty query check
+	if query == "" {
+		return `""`
+	}
 
-	// If query already contains FTS5 operators or quotes, return as-is
+	// If query already contains FTS5 operators or quotes, validate and return
 	if strings.ContainsAny(query, `"*`) {
+		// Basic validation - ensure quotes are balanced
+		quoteCount := strings.Count(query, `"`)
+		if quoteCount%2 != 0 {
+			// Unbalanced quotes - escape the whole query
+			return `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
+		}
 		return query
 	}
 
@@ -194,6 +213,13 @@ func (e *Engine) processFTSQuery(userQuery string) string {
 	}
 
 	return query
+}
+
+// escapeFTSQuery escapes special characters for FTS5
+func escapeFTSQuery(query string) string {
+	// FTS5 special characters that need escaping when not used as operators
+	// We'll wrap the query in quotes to treat it as a phrase
+	return `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
 }
 
 // isCodeQuery determines if a query should use the code-specific FTS table

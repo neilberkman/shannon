@@ -41,16 +41,22 @@ var SearchCmd = &cobra.Command{
 	Short: "Search through conversations",
 	Long: `Search through your Claude conversations using full-text search.
 
-Supports advanced query syntax:
-- Phrase search: "exact phrase"
-- Wildcard: test*
-- Boolean: machine AND learning
-- Exclusion: python -javascript
+Query Syntax:
+  Simple search:      shannon search "machine learning"
+  AND (implicit):     shannon search machine learning  
+  AND (explicit):     shannon search "python AND django"
+  OR operator:        shannon search "react OR vue OR angular"
+  NOT operator:       shannon search "error NOT timeout"
+  Exact phrase:       shannon search '"exact phrase match"'
+  Wildcard (prefix):  shannon search "data*"
 
-Examples:
-  claudesearch search "machine learning"
-  claudesearch search "python code" --sender human
-  claudesearch search "error" --start-date 2024-01-01`,
+Filters:
+  By sender:          shannon search "api" --sender human
+  By date range:      shannon search "bug" --after 2024-01-01 --before 2024-12-31
+  By date (alt):      shannon search "bug" --start-date 2024-01-01 --end-date 2024-12-31
+  Within conversation: shannon search "function" -c 1234
+
+Note: Boolean operators (AND, OR, NOT) are case-insensitive.`,
 
 	Args: cobra.MinimumNArgs(1),
 	RunE: runSearch,
@@ -61,6 +67,9 @@ func init() {
 	SearchCmd.Flags().StringVarP(&sender, "sender", "s", "", "filter by sender (human/assistant)")
 	SearchCmd.Flags().StringVar(&startDate, "start-date", "", "filter by start date (YYYY-MM-DD)")
 	SearchCmd.Flags().StringVar(&endDate, "end-date", "", "filter by end date (YYYY-MM-DD)")
+	// Add shorter aliases
+	SearchCmd.Flags().StringVar(&startDate, "after", "", "filter by start date (alias for --start-date)")
+	SearchCmd.Flags().StringVar(&endDate, "before", "", "filter by end date (alias for --end-date)")
 	SearchCmd.Flags().IntVarP(&limit, "limit", "l", 50, "maximum number of results")
 	SearchCmd.Flags().IntVar(&offset, "offset", 0, "offset for pagination")
 	SearchCmd.Flags().StringVar(&sortBy, "sort-by", "relevance", "sort by relevance or date")
@@ -82,6 +91,11 @@ func init() {
 
 func runSearch(cmd *cobra.Command, args []string) error {
 	query := strings.Join(args, " ")
+	
+	// Validate query
+	if strings.TrimSpace(query) == "" {
+		return fmt.Errorf("search query cannot be empty")
+	}
 
 	// Get configuration
 	cfg := config.Get()

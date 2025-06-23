@@ -104,11 +104,22 @@ shannon search "machine learning"
 Advanced search with filters:
 
 ```bash
-# Search only human messages
+# Boolean operators (case-insensitive)
+shannon search "python AND django"
+shannon search "react or vue or angular"
+shannon search "error NOT timeout"
+
+# Exact phrase search
+shannon search '"machine learning model"'
+
+# Wildcard search (prefix only)
+shannon search "async*"
+
+# Filter by sender
 shannon search "python code" --sender human
 
-# Search within date range
-shannon search "bug" --start-date 2024-01-01 --end-date 2024-12-31
+# Filter by date range (using short aliases)
+shannon search "bug" --after 2024-01-01 --before 2024-12-31
 
 # Search within specific conversation
 shannon search "function" --conversation 123

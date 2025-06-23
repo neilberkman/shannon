@@ -14,6 +14,21 @@ import (
 	"golang.org/x/term"
 )
 
+// Key constants
+const (
+	keyEnter = "enter"
+	keyEsc   = "esc"
+	keySlash = "/"
+	keyO     = "o"
+	keyQ     = "q"
+	keyG     = "g"
+	keyShiftG = "G"
+	keyN     = "n"
+	keyShiftN = "N"
+	
+	placeholderFind = "Find in conversation..."
+)
+
 // conversationItem implements list.Item for conversations
 type conversationItem struct {
 	conv *models.Conversation
@@ -126,7 +141,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			} else if m.searching {
 				switch msg.String() {
-				case "enter":
+				case keyEnter:
 					// Perform search
 					query := m.textInput.Value()
 					if query != "" {
@@ -149,7 +164,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.searching = false
 					m.textInput.Blur()
-				case "esc":
+				case keyEsc:
 					m.searching = false
 					m.textInput.SetValue("")
 					m.textInput.Blur()
@@ -166,7 +181,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searching = true
 					m.textInput.Focus()
 					cmds = append(cmds, textinput.Blink)
-				case "enter":
+				case keyEnter:
 					if i, ok := m.list.SelectedItem().(conversationItem); ok {
 						conv, messages, err := m.engine.GetConversation(i.conv.ID)
 						if err != nil {
@@ -231,7 +246,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ModeConversation:
 			if m.findActive {
 				switch msg.String() {
-				case "enter":
+				case keyEnter:
 					if m.textInput.Value() != "" {
 						m.findQuery = m.textInput.Value()
 						m.findMatches = m.findInConversation(m.findQuery)
@@ -242,7 +257,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.findActive = false
 					m.textInput.Blur()
-				case "esc":
+				case keyEsc:
 					m.findActive = false
 					m.findQuery = ""
 					m.findMatches = nil
@@ -260,7 +275,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "/", "f":
 					m.findActive = true
 					m.textInput.SetValue("")
-					m.textInput.Placeholder = "Find in conversation..."
+					m.textInput.Placeholder = placeholderFind
 					m.textInput.Focus()
 					cmds = append(cmds, textinput.Blink)
 				case "n":

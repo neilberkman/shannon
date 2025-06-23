@@ -9,6 +9,12 @@ import (
 	"github.com/neilberkman/shannon/internal/models"
 )
 
+// Sender constants
+const (
+	senderHuman     = "human"
+	senderAssistant = "assistant"
+)
+
 // Parser handles parsing Claude export files
 type Parser struct {
 	file *os.File
@@ -124,7 +130,7 @@ func ValidateExport(export *models.ClaudeExport) error {
 			if msg.UUID == "" {
 				return fmt.Errorf("message %d in conversation %d missing UUID", j, i)
 			}
-			if msg.Sender != "human" && msg.Sender != "assistant" {
+			if msg.Sender != senderHuman && msg.Sender != senderAssistant {
 				return fmt.Errorf("message %d in conversation %d has invalid sender: %s", j, i, msg.Sender)
 			}
 		}

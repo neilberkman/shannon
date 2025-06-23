@@ -5,7 +5,22 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.6] - 2025-06-23
+
+### Fixed
+- Empty search queries now show helpful error message instead of SQL error
+- Special characters in search queries are properly handled
+- Improved error messages for invalid search syntax
+
+### Added
+- Shorter date filter aliases: `--after` and `--before` (in addition to `--start-date` and `--end-date`)
+- Better search examples in help text and README
+- Comprehensive tests for query edge cases
+
+### Changed
+- Search help text now includes detailed examples of all query types
+
+## [0.2.5] - 2025-06-23
 
 ### Fixed
 - Fixed search behavior to treat multi-word queries as implicit AND instead of phrase search

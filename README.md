@@ -325,6 +325,12 @@ Database is stored in:
 - macOS: `~/Library/Application Support/shannon/claude-search.db`
 - Windows: `%LOCALAPPDATA%\shannon\claude-search.db`
 
+## Limitations
+
+- **Screenshots**: Screenshot attachments in conversations are not included in exports or searches. Only text content is indexed and exported.
+- **File Attachments**: Other file attachments (PDFs, documents, etc.) are not currently supported.
+- **Conversation Branches**: While branch information is preserved, navigation between branches is not yet implemented in the TUI.
+
 ## Terminal Compatibility
 
 Shannon works in any terminal but provides enhanced features in modern emulators:

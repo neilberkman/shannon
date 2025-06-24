@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Shared TUI styles
 var (
@@ -48,3 +52,21 @@ var (
 				Reverse(true).
 				Bold(true)
 )
+
+// sanitizeFilename makes a filename safe for the filesystem
+func sanitizeFilename(name string) string {
+	// Replace problematic characters
+	replacer := strings.NewReplacer(
+		"/", "-",
+		"\\", "-",
+		":", "-",
+		"*", "-",
+		"?", "-",
+		"\"", "-",
+		"<", "-",
+		">", "-",
+		"|", "-",
+		" ", "_",
+	)
+	return replacer.Replace(name)
+}

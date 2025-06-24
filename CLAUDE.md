@@ -2,13 +2,13 @@
 
 This document contains project-specific guidelines for Claude when working on the Shannon codebase.
 
-## CRITICAL: Duplicate Conversation View Code
+## CRITICAL: Unified Conversation View
 
-**THE CONVERSATION VIEW IS DUPLICATED IN browse.go AND search.go!**
-- Both files have separate implementations of artifact navigation, key handlers, etc.
-- This causes bugs where fixes in one file don't apply to the other
-- Users can reach conversations via browse OR search, so BOTH must work identically
-- This duplication MUST be unified into a single shared implementation
+**UPDATE: The conversation view has been unified in `cmd/tui/conversation.go`**
+- Both browse.go and search.go now delegate all conversation display and interaction to the shared conversationView component
+- This ensures consistent behavior whether users reach conversations via browse or search
+- All artifact navigation, key handlers, and display logic is centralized
+- Any changes to conversation viewing should be made in conversation.go only
 
 ## Project Overview
 
@@ -127,6 +127,7 @@ go build
 - Date formatting uses `github.com/dustin/go-humanize`
 - Terminal rendering uses `github.com/charmbracelet/bubbletea`
 - All SQL queries should use parameterized statements
+- **Unified conversation view**: The `cmd/tui/conversation.go` component handles all conversation display and interaction for both browse and search modes
 
 ## Artifact Extraction
 

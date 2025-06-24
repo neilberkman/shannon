@@ -98,7 +98,7 @@ func simpleWordWrap(text string, width int) string {
 }
 
 // RenderConversationWithArtifacts renders the conversation with inline artifacts
-func RenderConversationWithArtifacts(conversation *models.Conversation, messages []*models.Message, messageArtifacts map[int64][]*artifacts.Artifact, width int, focusedOnArtifact bool, messageIndex int, artifactIndex int) string {
+func RenderConversationWithArtifacts(conversation *models.Conversation, messages []*models.Message, messageArtifacts map[int64][]*artifacts.Artifact, width int, focusedOnArtifact bool, messageIndex int, artifactIndex int, expandedArtifacts map[string]bool) string {
 	var sb strings.Builder
 	renderer := artifacts.NewTerminalRenderer()
 
@@ -156,9 +156,18 @@ func RenderConversationWithArtifacts(conversation *models.Conversation, messages
 				// Check if this artifact is currently focused
 				isFocused := focusedOnArtifact && i == messageIndex && j == artifactIndex
 
+				// Check if this artifact is expanded (default to false = show preview)
+				// false = show maxHeight lines, true = show all lines
+				isExpanded := false
+				if expandedArtifacts != nil {
+					if expanded, exists := expandedArtifacts[artifact.ID]; exists {
+						isExpanded = expanded
+					}
+				}
+
 				// Render artifact inline with limited height
 				maxHeight := 10
-				artifactRender := renderer.RenderInline(artifact, isFocused, maxHeight)
+				artifactRender := renderer.RenderInline(artifact, isFocused, isExpanded, maxHeight)
 
 				// Indent the artifact
 				lines := strings.Split(artifactRender, "\n")

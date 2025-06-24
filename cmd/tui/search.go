@@ -9,9 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/neilberkman/shannon/internal/artifacts"
 	"github.com/neilberkman/shannon/internal/models"
 	"github.com/neilberkman/shannon/internal/search"
 	"golang.org/x/term"
@@ -63,24 +61,14 @@ type searchModel struct {
 	conversations []*models.Conversation // Conversations from grouped search results
 	list          list.Model
 	textInput     textinput.Model
-	viewport      viewport.Model
 	mode          Mode
 	selected      int
 	width         int
 	height        int
 	query         string
-	conversation  *models.Conversation
-	messages      []*models.Message
-	findQuery     string
-	findActive    bool
-	findMatches   []int // line numbers that match the find query
-	currentMatch  int   // current match index
 
-	// Artifact support
-	artifacts         map[int64][]*artifacts.Artifact // message ID -> artifacts
-	focusedOnArtifact bool
-	artifactIndex     int // which artifact in current message
-	messageIndex      int // which message we're viewing artifacts for
+	// Conversation view handles all conversation display and interaction
+	convView conversationView
 }
 
 // newSearchModel creates a new search model
@@ -147,7 +135,6 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 		conversations: conversations,
 		list:          l,
 		textInput:     ti,
-		viewport:      viewport.New(width, height-3),
 		mode:          ModeList,
 		width:         width,
 		height:        height,
@@ -169,8 +156,12 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.list.SetSize(msg.Width, msg.Height-3)
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 3
+
+		// Update conversation view if active
+		if m.mode == ModeConversation {
+			cv, _ := m.convView.Update(msg)
+			m.convView = cv
+		}
 
 	case tea.KeyMsg:
 		switch m.mode {
@@ -195,24 +186,10 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// Log error for debugging
 						fmt.Printf("Error loading conversation %d: %v\n", i.conv.ID, err)
 					} else {
-						m.conversation = conv
-						m.messages = messages
+						// Create new conversation view
+						m.convView = newConversationView(conv, messages, m.width, m.height)
 						m.mode = ModeConversation
 						m.selected = m.list.Index()
-
-						// Extract artifacts
-						m.extractArtifacts()
-
-						// Clear any previous find state and go to top
-						m.findQuery = ""
-						m.findMatches = nil
-						m.currentMatch = 0
-						m.findActive = false
-
-						// Set content and go to top
-						m.viewport.SetContent(RenderConversationWithArtifacts(conv, messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
-						m.viewport.GotoTop()
-						m.viewport.SetYOffset(0) // Force to absolute top
 					}
 				}
 			case "o":
@@ -258,101 +235,20 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case ModeConversation:
-			if m.findActive {
-				switch msg.String() {
-				case "enter":
-					if m.textInput.Value() != "" {
-						m.findQuery = m.textInput.Value()
-						m.findMatches = m.findInConversation(m.findQuery)
-						m.currentMatch = 0
-						if len(m.findMatches) > 0 {
-							m.viewport.SetYOffset(m.findMatches[0])
-						}
-						// Stay in find mode for n/N navigation
-						m.findActive = false // Just blur text input
-						m.textInput.Blur()
-					}
-				case "esc":
-					m.findActive = false
-					m.findQuery = ""
-					m.findMatches = nil
-					m.textInput.SetValue("")
-					m.textInput.Blur()
-					// ESC in find mode: clear find, stay in conversation - RETURN EARLY
+			// Delegate all conversation handling to convView
+			cv, cmd := m.convView.Update(msg)
+			m.convView = cv
+			cmds = append(cmds, cmd)
+
+			// Check for keys that should exit conversation mode
+			switch msg.String() {
+			case "q":
+				return m, tea.Quit
+			case "esc":
+				// Only exit if not in find mode and not in artifact focus mode
+				if !m.convView.findActive && !m.convView.focusedOnArtifact {
+					m.mode = ModeList
 					return m, nil
-				default:
-					ti, cmd := m.textInput.Update(msg)
-					m.textInput = ti
-					cmds = append(cmds, cmd)
-				}
-				// Find mode handled - skip conversation mode handlers
-			} else {
-				switch msg.String() {
-				case "q":
-					return m, tea.Quit
-				case "esc":
-					if m.findQuery != "" {
-						// Clear find results and stay in conversation (browser back button)
-						m.findQuery = ""
-						m.findMatches = nil
-						m.currentMatch = 0
-					} else {
-						// Normal conversation mode - go back to search results
-						m.mode = ModeList
-					}
-				case "/", "f":
-					m.findActive = true
-					m.textInput.SetValue("")
-					m.textInput.Placeholder = "Find in conversation..."
-					m.textInput.Focus()
-					cmds = append(cmds, textinput.Blink)
-				case "n":
-					if len(m.findMatches) > 0 {
-						m.currentMatch = (m.currentMatch + 1) % len(m.findMatches)
-						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
-					}
-				case "N":
-					if len(m.findMatches) > 0 {
-						m.currentMatch = (m.currentMatch - 1 + len(m.findMatches)) % len(m.findMatches)
-						m.viewport.SetYOffset(m.findMatches[m.currentMatch])
-					}
-				case "g":
-					// Go to top of conversation
-					m.viewport.GotoTop()
-				case "G":
-					// Go to bottom of conversation
-					m.viewport.GotoBottom()
-				case "tab", "a":
-					// Toggle artifact focus
-					if len(m.artifacts) > 0 {
-						m.focusedOnArtifact = !m.focusedOnArtifact
-						// Re-render with new focus state
-						m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
-					}
-				case "s":
-					// Save current artifact if focused
-					if m.focusedOnArtifact {
-						m.saveCurrentArtifact()
-					}
-				case "left", "h":
-					// Previous artifact in message
-					if m.focusedOnArtifact && m.artifactIndex > 0 {
-						m.artifactIndex--
-						m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
-					}
-				case "right", "l":
-					// Next artifact in message
-					if m.focusedOnArtifact {
-						msgID := m.getCurrentMessageWithArtifact()
-						if msgID > 0 && m.artifacts[msgID] != nil && m.artifactIndex < len(m.artifacts[msgID])-1 {
-							m.artifactIndex++
-							m.viewport.SetContent(RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex))
-						}
-					}
-				default:
-					vp, cmd := m.viewport.Update(msg)
-					m.viewport = vp
-					cmds = append(cmds, cmd)
 				}
 			}
 		}
@@ -364,8 +260,6 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.mode {
 		case ModeList:
 			m.list, cmd = m.list.Update(msg)
-		case ModeConversation:
-			m.viewport, cmd = m.viewport.Update(msg)
 		}
 	}
 
@@ -375,125 +269,26 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the view
 func (m searchModel) View() string {
-	var content string
-
 	switch m.mode {
 	case ModeList:
-		content = m.list.View()
+		content := m.list.View()
+		help := HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: view • o: open in claude.ai • q: quit")
+		return content + "\n" + help
+
 	case ModeConversation:
-		// Use highlighted content if find is active or has matches
-		if m.findQuery != "" {
-			m.viewport.SetContent(m.renderConversationWithHighlights())
-		}
-		content = m.viewport.View()
+		// Delegate to conversation view
+		return m.convView.View()
 	}
 
-	// Add help text
-	var help string
-	switch m.mode {
-	case ModeList:
-		help = HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: view • o: open in claude.ai • q: quit")
-	case ModeConversation:
-		if m.findActive {
-			help = HelpStyle.Render("enter: search • esc: cancel")
-		} else if len(m.artifacts) > 0 {
-			if m.focusedOnArtifact {
-				help = HelpStyle.Render("tab: unfocus • s: save • ←/→: navigate artifacts • esc: back • q: quit")
-			} else {
-				help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev • tab: focus artifact • esc: back • q: quit")
-			}
-		} else {
-			help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev match • esc: back • q: quit")
-		}
-	}
-
-	// For conversation mode, add find interface
-	if m.mode == ModeConversation {
-		var findBar string
-		if m.findActive {
-			findBar = TitleStyle.Render("Find: ") + m.textInput.View() + "\n"
-		} else if m.findQuery != "" {
-			if len(m.findMatches) > 0 {
-				findBar = HelpStyle.Render(fmt.Sprintf("Found %d matches for '%s' • Match %d/%d • n: next • N: prev",
-					len(m.findMatches), m.findQuery, m.currentMatch+1, len(m.findMatches))) + "\n"
-			} else {
-				findBar = HelpStyle.Render(fmt.Sprintf("No matches found for '%s' • Press / to search again", m.findQuery)) + "\n"
-			}
-		}
-		return findBar + content + "\n" + help
-	}
-
-	return content + "\n" + help
+	return ""
 }
 
-// renderDetail renders the detail view for a search result
-
-// findInConversation searches for a query in the conversation and returns line numbers of matches
-func (m searchModel) findInConversation(query string) []int {
-	if m.conversation == nil || m.messages == nil || query == "" {
-		return nil
-	}
-
-	// Generate the conversation text to search through
-	content := RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex)
-	lines := strings.Split(content, "\n")
-
-	var matches []int
-	queryLower := strings.ToLower(query)
-
-	for i, line := range lines {
-		if strings.Contains(strings.ToLower(line), queryLower) {
-			matches = append(matches, i)
-		}
-	}
-
-	return matches
-}
-
-// renderConversationWithHighlights renders conversation with find matches highlighted
-func (m searchModel) renderConversationWithHighlights() string {
-	if m.conversation == nil || m.messages == nil {
-		return ""
-	}
-
-	content := RenderConversationWithArtifacts(m.conversation, m.messages, m.artifacts, m.width, m.focusedOnArtifact, m.messageIndex, m.artifactIndex)
-
-	// If no find query, return content as-is
-	if m.findQuery == "" {
-		return content
-	}
-
-	// Highlight all instances of the find query
-	queryLower := strings.ToLower(m.findQuery)
-	lines := strings.Split(content, "\n")
-
-	for i, line := range lines {
-		lineLower := strings.ToLower(line)
-		if strings.Contains(lineLower, queryLower) {
-			// Find and highlight all instances in this line
-			start := 0
-			var highlightedLine strings.Builder
-
-			for {
-				idx := strings.Index(lineLower[start:], queryLower)
-				if idx == -1 {
-					highlightedLine.WriteString(line[start:])
-					break
-				}
-
-				actualIdx := start + idx
-				highlightedLine.WriteString(line[start:actualIdx])
-				matchText := line[actualIdx : actualIdx+len(m.findQuery)]
-				highlightedLine.WriteString(FindHighlightStyle.Render(matchText))
-				start = actualIdx + len(m.findQuery)
-			}
-
-			lines[i] = highlightedLine.String()
-		}
-	}
-
-	return strings.Join(lines, "\n")
-}
+// The following methods have been moved to conversationView:
+// - findInConversation
+// - renderConversationWithHighlights
+// - extractArtifacts
+// - getCurrentMessageWithArtifact
+// - saveCurrentArtifact
 
 // openURL opens a URL in the default browser
 func openURL(url string) {
@@ -511,63 +306,4 @@ func openURL(url string) {
 	}
 	args = append(args, url)
 	_ = exec.Command(cmd, args...).Start()
-}
-
-// extractArtifacts extracts artifacts from the loaded messages
-func (m *searchModel) extractArtifacts() {
-	m.artifacts = make(map[int64][]*artifacts.Artifact)
-	extractor := artifacts.NewExtractor()
-
-	for _, msg := range m.messages {
-		if msg.Sender == "assistant" {
-			msgArtifacts, _ := extractor.ExtractFromMessage(msg)
-			if len(msgArtifacts) > 0 {
-				m.artifacts[msg.ID] = msgArtifacts
-			}
-		}
-	}
-}
-
-// getCurrentMessageWithArtifact returns the ID of the current message that has artifacts
-func (m *searchModel) getCurrentMessageWithArtifact() int64 {
-	// For now, return the first message with artifacts
-	// In a more sophisticated implementation, we'd track which message the user is viewing
-	for _, msg := range m.messages {
-		if m.artifacts[msg.ID] != nil && len(m.artifacts[msg.ID]) > 0 {
-			return msg.ID
-		}
-	}
-	return 0
-}
-
-// saveCurrentArtifact saves the currently focused artifact to a file
-func (m *searchModel) saveCurrentArtifact() {
-	msgID := m.getCurrentMessageWithArtifact()
-	if msgID == 0 || m.artifacts[msgID] == nil || m.artifactIndex >= len(m.artifacts[msgID]) {
-		return
-	}
-
-	artifact := m.artifacts[msgID][m.artifactIndex]
-
-	// Generate filename
-	filename := artifact.Title
-	if filename == "" {
-		filename = fmt.Sprintf("artifact_%d", m.artifactIndex+1)
-	}
-	filename = sanitizeFilename(filename)
-
-	// Add extension
-	ext := artifact.GetFileExtension()
-	if !strings.HasSuffix(filename, ext) {
-		filename += ext
-	}
-
-	// Save to current directory
-	// In a real implementation, you might want to prompt for location
-	err := os.WriteFile(filename, []byte(artifact.Content), 0644)
-	if err != nil {
-		fmt.Printf("Error saving artifact: %v\n", err)
-	} else {
-		fmt.Printf("Saved artifact to: %s\n", filename)
-	}
 }

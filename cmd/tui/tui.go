@@ -12,7 +12,6 @@ import (
 	"github.com/neilberkman/shannon/internal/discovery"
 	"github.com/neilberkman/shannon/internal/search"
 	"github.com/spf13/cobra"
-	clipboard "golang.design/x/clipboard"
 )
 
 // ViewType represents the current active view
@@ -220,7 +219,7 @@ func init() {
 
 func runTUI(cmd *cobra.Command, args []string) error {
 	// Initialize clipboard support
-	if err := clipboard.Init(); err != nil {
+	if err := initClipboard(); err != nil {
 		// Log but don't fail - clipboard might not be available in all environments
 		fmt.Fprintf(os.Stderr, "Warning: clipboard initialization failed: %v\n", err)
 	}

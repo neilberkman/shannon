@@ -115,6 +115,8 @@ func (cv conversationView) Update(msg tea.Msg) (conversationView, tea.Cmd) {
 					cv.findQuery = cv.textInput.Value()
 					cv.findMatches = cv.findInConversation(cv.findQuery)
 					cv.currentMatch = 0
+					// Update content to show highlights
+					cv.updateContent()
 					if len(cv.findMatches) > 0 {
 						cv.viewport.SetYOffset(cv.findMatches[0])
 					}
@@ -127,6 +129,8 @@ func (cv conversationView) Update(msg tea.Msg) (conversationView, tea.Cmd) {
 				cv.findMatches = nil
 				cv.textInput.SetValue("")
 				cv.textInput.Blur()
+				// Update content to remove highlights
+				cv.updateContent()
 			default:
 				ti, cmd := cv.textInput.Update(msg)
 				cv.textInput = ti
@@ -181,6 +185,12 @@ func (cv conversationView) Update(msg tea.Msg) (conversationView, tea.Cmd) {
 					cv.focusedOnArtifact = false
 					cv.updateContent()
 					cv.viewport.SetYOffset(savedY)
+					// Ensure notification timer continues if active
+					if cv.notificationTimer > 0 {
+						cmds = append(cmds, tea.Tick(time.Millisecond*100, func(time.Time) tea.Msg {
+							return tickMsg{}
+						}))
+					}
 				}
 			case "tab":
 				// Toggle expand/collapse current artifact

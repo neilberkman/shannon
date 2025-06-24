@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+
 // Shared TUI styles
 var (
 	TitleStyle = lipgloss.NewStyle().
@@ -97,8 +98,12 @@ func highlightMatches(content, query string) string {
 				// Add text before match
 				result += line[lastEnd : lastEnd+idx]
 				
-				// Add highlighted match
-				matchText := line[lastEnd+idx : lastEnd+idx+len(query)]
+				// Add highlighted match (preserve original case)
+				matchEnd := lastEnd + idx + len(query)
+				if matchEnd > len(line) {
+					matchEnd = len(line)
+				}
+				matchText := line[lastEnd+idx : matchEnd]
 				result += FindHighlightStyle.Render(matchText)
 				
 				lastEnd += idx + len(query)

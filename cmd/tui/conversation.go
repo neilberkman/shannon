@@ -502,7 +502,8 @@ func (cv *conversationView) copyCurrentArtifact() {
 	// Copy to clipboard
 	err := writeToClipboard(artifact.Content)
 	if err != nil {
-		cv.notification = fmt.Sprintf("Clipboard error: %v", err)
+		// Show user-friendly error message
+		cv.notification = "✗ Clipboard not available"
 		cv.notificationTimer = 30 // 3 seconds
 		return
 	}

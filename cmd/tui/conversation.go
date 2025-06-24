@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/neilberkman/shannon/internal/artifacts"
 	"github.com/neilberkman/shannon/internal/models"
+	clipboard "golang.design/x/clipboard"
 )
 
 // conversationView handles the display and interaction for a single conversation
@@ -483,13 +483,42 @@ func (cv *conversationView) copyCurrentArtifact() {
 
 	artifact := cv.artifacts[msgID][cv.artifactIndex]
 
-	// Copy to clipboard
-	err := clipboard.WriteAll(artifact.Content)
+	// Initialize clipboard if not already initialized
+	err := clipboard.Init()
 	if err != nil {
-		cv.notification = fmt.Sprintf("Error: %v", err)
+		cv.notification = fmt.Sprintf("Clipboard init error: %v", err)
 		cv.notificationTimer = 30 // 3 seconds
-	} else {
-		cv.notification = "✓ Copied to clipboard"
-		cv.notificationTimer = 20 // 2 seconds
+		return
 	}
+
+	// Always write as text format
+	clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+
+	// Also write with custom MIME type if applicable
+	switch artifact.Type {
+	case artifacts.TypeHTML:
+		// Write HTML with proper MIME type
+		clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+		// TODO: Once the library supports custom MIME types, use:
+		// clipboard.WriteAll([]clipboard.Data{
+		//     {Format: clipboard.FmtText, Data: []byte(artifact.Content)},
+		//     {Format: "text/html", Data: []byte(artifact.Content)},
+		// })
+	case artifacts.TypeSVG:
+		// SVG is XML-based text
+		clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+		// TODO: Add image format when SVG is rendered
+	case artifacts.TypeMarkdown:
+		// Markdown as plain text
+		clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+	case artifacts.TypeCode:
+		// Code as plain text with language hint
+		clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+	default:
+		// Default to text
+		clipboard.Write(clipboard.FmtText, []byte(artifact.Content))
+	}
+
+	cv.notification = "✓ Copied to clipboard"
+	cv.notificationTimer = 20 // 2 seconds
 }

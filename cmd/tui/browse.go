@@ -23,8 +23,6 @@ const (
 	keyShiftG = "G"
 	keyN      = "n"
 	keyShiftN = "N"
-
-	placeholderFind = "Find in conversation..."
 )
 
 // conversationItem implements list.Item for conversations

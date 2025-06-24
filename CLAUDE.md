@@ -105,11 +105,9 @@ go build
 # Import conversations
 ./shannon import /path/to/conversations.json
 
-# Work with artifacts
-./shannon artifacts list 123                    # List artifacts in conversation
-./shannon artifacts search "python code"        # Search for artifacts
-./shannon artifacts extract 123                 # Extract artifacts to files
-./shannon view 123 --show-artifacts            # View conversation with artifacts
+# Work with artifacts (via TUI)
+# Artifacts are now integrated into the TUI conversation view
+# Press 'a' to enter artifact mode when viewing a conversation with artifacts
 ```
 
 ## Release Process
@@ -159,5 +157,13 @@ Shannon can extract and manage artifacts from Claude conversations. Artifacts ar
 - Use parameterized SQL queries to prevent injection
 - Sanitize file paths before operations
 - Keep dependencies updated
+
+## Platform-Specific Features
+
+### Clipboard Support
+- Full clipboard support on macOS and Windows via `golang.design/x/clipboard`
+- Linux requires X11 development headers (libx11-dev) for clipboard support
+- Build constraints prevent compilation errors on systems without required headers
+- Graceful fallback with error messages when clipboard is unavailable
 
 Remember: When in doubt, ask for clarification rather than making assumptions about user data or preferences.

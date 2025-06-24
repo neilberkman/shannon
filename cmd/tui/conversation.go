@@ -284,7 +284,7 @@ func (cv conversationView) View() string {
 
 // updateContent updates the viewport content
 func (cv *conversationView) updateContent() {
-	cv.viewport.SetContent(RenderConversationWithArtifacts(
+	content := RenderConversationWithArtifacts(
 		cv.conversation,
 		cv.messages,
 		cv.artifacts,
@@ -293,7 +293,14 @@ func (cv *conversationView) updateContent() {
 		cv.messageIndex,
 		cv.artifactIndex,
 		cv.expandedArtifacts,
-	))
+	)
+	
+	// Apply find highlighting if we have a query
+	if cv.findQuery != "" {
+		content = highlightMatches(content, cv.findQuery)
+	}
+	
+	cv.viewport.SetContent(content)
 }
 
 // findInConversation searches for a query in the conversation

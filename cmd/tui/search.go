@@ -235,8 +235,9 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case ModeConversation:
-			// Store the previous artifact focus state
+			// Store the previous states
 			wasInArtifactMode := m.convView.focusedOnArtifact
+			wasInFindMode := m.convView.findActive
 			
 			// Delegate all conversation handling to convView
 			cv, cmd := m.convView.Update(msg)
@@ -250,6 +251,11 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				// If we were in artifact mode and now we're not, the conversation view handled it
 				if wasInArtifactMode && !m.convView.focusedOnArtifact {
+					// Don't exit conversation mode - just return
+					return m, tea.Batch(cmds...)
+				}
+				// If we were in find mode and now we're not, the conversation view handled it
+				if wasInFindMode && !m.convView.findActive {
 					// Don't exit conversation mode - just return
 					return m, tea.Batch(cmds...)
 				}

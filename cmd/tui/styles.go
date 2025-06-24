@@ -70,3 +70,43 @@ func sanitizeFilename(name string) string {
 	)
 	return replacer.Replace(name)
 }
+
+// highlightMatches highlights all occurrences of query in the content
+func highlightMatches(content, query string) string {
+	if query == "" {
+		return content
+	}
+	
+	lines := strings.Split(content, "\n")
+	queryLower := strings.ToLower(query)
+	
+	for i, line := range lines {
+		lineLower := strings.ToLower(line)
+		if strings.Contains(lineLower, queryLower) {
+			// Find all occurrences in the line
+			result := ""
+			lastEnd := 0
+			
+			for {
+				idx := strings.Index(strings.ToLower(line[lastEnd:]), queryLower)
+				if idx == -1 {
+					result += line[lastEnd:]
+					break
+				}
+				
+				// Add text before match
+				result += line[lastEnd : lastEnd+idx]
+				
+				// Add highlighted match
+				matchText := line[lastEnd+idx : lastEnd+idx+len(query)]
+				result += FindHighlightStyle.Render(matchText)
+				
+				lastEnd += idx + len(query)
+			}
+			
+			lines[i] = result
+		}
+	}
+	
+	return strings.Join(lines, "\n")
+}

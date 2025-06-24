@@ -146,7 +146,7 @@ func runView(cmd *cobra.Command, args []string) error {
 					fmt.Printf("    %s\n", renderer.RenderDetail(artifact))
 				} else {
 					maxHeight := 10
-					inline := renderer.RenderInline(artifact, false, maxHeight)
+					inline := renderer.RenderInline(artifact, false, true, maxHeight)
 					// Indent the artifact display
 					lines := strings.Split(inline, "\n")
 					for _, line := range lines {

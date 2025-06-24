@@ -11,7 +11,7 @@ import (
 type Renderer interface {
 	RenderList(artifacts []*Artifact) string
 	RenderDetail(artifact *Artifact) string
-	RenderInline(artifact *Artifact, focused bool, maxHeight int) string
+	RenderInline(artifact *Artifact, focused bool, expanded bool, maxHeight int) string
 }
 
 // TerminalRenderer renders artifacts for terminal display
@@ -82,44 +82,101 @@ func (r *TerminalRenderer) RenderDetail(artifact *Artifact) string {
 }
 
 // RenderInline renders an artifact inline within a conversation view
-func (r *TerminalRenderer) RenderInline(artifact *Artifact, focused bool, maxHeight int) string {
+func (r *TerminalRenderer) RenderInline(artifact *Artifact, focused bool, expanded bool, maxHeight int) string {
 	icon := getArtifactIcon(artifact.Type)
 
-	// Header line
-	header := fmt.Sprintf("┌─ %s %s ", icon, artifact.Title)
+	// Base header content
+	headerContent := fmt.Sprintf(" %s %s ", icon, artifact.Title)
 	if artifact.Language != "" {
-		header += fmt.Sprintf("(%s) ", artifact.Language)
-	}
-	header += strings.Repeat("─", max(0, 50-len(header)))
-	if focused {
-		header += " [Tab] unfocus ─┐"
-	} else {
-		header += "─┐"
+		headerContent += fmt.Sprintf("(%s) ", artifact.Language)
 	}
 
-	// Content preview
+	// Get content lines
 	lines := strings.Split(artifact.Content, "\n")
-	var contentLines []string
 
-	for i := 0; i < min(len(lines), maxHeight); i++ {
-		line := lines[i]
-		if len(line) > 48 {
-			line = line[:45] + "..."
+	// Find the maximum line width for proper box formatting
+	maxWidth := 50
+	for _, line := range lines {
+		if len(line)+4 > maxWidth { // +4 for "│ " and " │"
+			maxWidth = min(len(line)+4, 100) // Cap at 100 chars total
 		}
-		contentLines = append(contentLines, fmt.Sprintf("│ %s │", padRight(line, 48)))
 	}
 
-	// Footer
-	footer := "└"
-	if len(lines) > maxHeight {
-		footer += fmt.Sprintf("─ ... (%d more lines) ", len(lines)-maxHeight)
-	}
-	footer += strings.Repeat("─", max(0, 49-len(footer)))
+	// Adjust width to accommodate header controls if focused
 	if focused {
-		footer += " [s] save ─┘"
-	} else {
-		footer += "─┘"
+		minHeaderWidth := len(headerContent) + len(" [Tab] collapse • [Esc] exit ") + 4
+		if minHeaderWidth > maxWidth {
+			maxWidth = minHeaderWidth
+		}
 	}
+
+	// Build header with proper width
+	header := "┌─" + headerContent
+	if focused {
+		actions := " [Tab] collapse • [Esc] exit "
+		padding := max(0, maxWidth-len(headerContent)-len(actions)-4)
+		header += strings.Repeat("─", padding) + actions + "─┐"
+	} else {
+		padding := max(0, maxWidth-len(headerContent)-4)
+		header += strings.Repeat("─", padding) + "─┐"
+	}
+
+	// Build content lines
+	var contentLines []string
+	innerWidth := maxWidth - 4 // Account for "│ " and " │"
+
+	// Determine how many lines to show
+	linesToShow := len(lines)
+	if !expanded && len(lines) > maxHeight {
+		// Show preview (maxHeight lines) when collapsed
+		linesToShow = maxHeight
+	}
+
+	for i := 0; i < linesToShow; i++ {
+		displayLine := lines[i]
+		if len(displayLine) > innerWidth {
+			displayLine = displayLine[:innerWidth-3] + "..."
+		}
+		contentLines = append(contentLines, fmt.Sprintf("│ %s │", padRight(displayLine, innerWidth)))
+	}
+
+	// Build footer
+	footer := "└"
+
+	// Show "more lines" info if collapsed and there are more lines
+	if !expanded && len(lines) > maxHeight {
+		moreInfo := fmt.Sprintf("─ ... (%d more lines) ", len(lines)-maxHeight)
+		if focused {
+			saveText := " [s] save "
+			padding := max(0, maxWidth-len(moreInfo)-len(saveText)-2)
+			footer += moreInfo + strings.Repeat("─", padding) + saveText
+		} else {
+			padding := max(0, maxWidth-len(moreInfo)-2)
+			footer += moreInfo + strings.Repeat("─", padding)
+		}
+	} else {
+		// Expanded or short artifact
+		if focused {
+			saveText := " [s] save "
+			if expanded && len(lines) > 20 {
+				lineInfo := fmt.Sprintf("─ (%d lines total) ", len(lines))
+				padding := max(0, maxWidth-len(lineInfo)-len(saveText)-2)
+				footer += lineInfo + strings.Repeat("─", padding) + saveText
+			} else {
+				padding := max(0, maxWidth-len(saveText)-2)
+				footer += strings.Repeat("─", padding) + saveText
+			}
+		} else {
+			if expanded && len(lines) > 20 {
+				lineInfo := fmt.Sprintf("─ (%d lines total) ", len(lines))
+				padding := max(0, maxWidth-len(lineInfo)-2)
+				footer += lineInfo + strings.Repeat("─", padding)
+			} else {
+				footer += strings.Repeat("─", maxWidth-2)
+			}
+		}
+	}
+	footer += "─┘"
 
 	// Apply style
 	style := r.artifactStyle
@@ -185,7 +242,7 @@ func (r *MarkdownRenderer) RenderDetail(artifact *Artifact) string {
 }
 
 // RenderInline renders an artifact inline (same as detail for markdown)
-func (r *MarkdownRenderer) RenderInline(artifact *Artifact, focused bool, maxHeight int) string {
+func (r *MarkdownRenderer) RenderInline(artifact *Artifact, focused bool, expanded bool, maxHeight int) string {
 	return r.RenderDetail(artifact)
 }
 

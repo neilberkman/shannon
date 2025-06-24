@@ -5,6 +5,36 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2025-06-23
+
+### Added
+- **Artifact support in TUI**: New artifact focus mode for viewing and interacting with Claude artifacts
+  - Press 'a' to enter artifact mode when artifacts are present
+  - Navigate between artifacts with n/N
+  - Expand/collapse artifacts with Tab (preview shows 10 lines, expanded shows all)
+  - Save artifacts to files with 's'
+  - Copy artifacts to clipboard with 'c'
+  - Exit artifact mode with Escape
+- **Advanced clipboard support**: Integrated golang.design/x/clipboard for better clipboard functionality
+- **Unified conversation view**: Consolidated conversation display logic across browse and search modes
+- **Artifact extraction**: Added comprehensive artifact extraction and rendering system
+  - Supports code, markdown, HTML, SVG, React, and Mermaid artifacts
+  - Smart file extension detection based on artifact type and language
+  - Inline artifact rendering with syntax-aware formatting
+
+### Fixed
+- Fixed escape key behavior in artifact mode to properly return to conversation view
+- Fixed escape key behavior in find mode to stay in conversation view
+- Fixed notification timer to continue running after exiting artifact mode
+- Fixed find highlighting to update when search query changes
+- Improved artifact auto-scroll to properly detect artifact headers in decorative boxes
+
+### Changed
+- Artifact navigation keys changed from arrow keys to n/N for consistency with search
+- Tab key now expands/collapses artifacts instead of focusing them
+- Dynamic box width for artifacts based on content (capped at 100 chars)
+- Removed debug output from artifact navigation
+
 ## [0.2.6] - 2025-06-23
 
 ### Fixed

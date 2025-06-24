@@ -218,6 +218,12 @@ func init() {
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {
+	// Initialize clipboard support
+	if err := initClipboard(); err != nil {
+		// Log but don't fail - clipboard might not be available in all environments
+		fmt.Fprintf(os.Stderr, "Warning: clipboard initialization failed: %v\n", err)
+	}
+
 	// Get initial query if provided
 	if len(args) > 0 {
 		initialQuery = strings.Join(args, " ")

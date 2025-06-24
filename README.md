@@ -254,6 +254,8 @@ TUI Keyboard Shortcuts:
   - `↑/↓`: Scroll messages
   - `g/G`: Go to top/bottom
   - `/`: Find text within conversation
+  - `a`: Enter artifact focus mode (if artifacts present)
+  - `o`: Open conversation in claude.ai
   - `Esc`: Back to search results (or clear find if active)
   - `q`: Quit application
 
@@ -262,12 +264,21 @@ TUI Keyboard Shortcuts:
   - `Esc`: Clear find and return to conversation
   - `q`: Quit application
 
+- **Artifact Mode** (within conversation):
+  - `n/N`: Navigate between artifacts
+  - `Tab`: Expand/collapse artifact (toggle between preview and full view)
+  - `s`: Save current artifact to file
+  - `c`: Copy current artifact to clipboard
+  - `Esc`: Exit artifact mode
+  - `q`: Quit application
+
 **TUI Features:**
 - 🔍 **In-conversation search** - Find and highlight text within conversations
 - 🔙 **Browser-like navigation** - ESC acts as back button, q quits completely  
 - 💬 **Conversation-centric results** - Search shows conversations, not individual messages
 - 📍 **Smart positioning** - Conversations start at the first message when opened
 - ⌨️ **Consistent shortcuts** - Standard vim-like navigation (g/G for top/bottom)
+- 📄 **Artifact focus mode** - Navigate, view, save, and copy Claude artifacts with dedicated controls
 
 ## Search Syntax
 
@@ -325,6 +336,12 @@ Database is stored in:
 - macOS: `~/Library/Application Support/shannon/claude-search.db`
 - Windows: `%LOCALAPPDATA%\shannon\claude-search.db`
 
+## Limitations
+
+- **Screenshots**: Screenshot attachments in conversations are not included in exports or searches. Only text content is indexed and exported.
+- **File Attachments**: Other file attachments (PDFs, documents, etc.) are not currently supported.
+- **Conversation Branches**: While branch information is preserved, navigation between branches is not yet implemented in the TUI.
+
 ## Terminal Compatibility
 
 Shannon works in any terminal but provides enhanced features in modern emulators:
@@ -369,6 +386,10 @@ go fmt ./...
 go vet ./...
 golangci-lint run ./...
 ```
+
+## Contributing
+
+Contributions are welcome! Please check our [ROADMAP.md](ROADMAP.md) for planned features and ideas.
 
 ## License
 

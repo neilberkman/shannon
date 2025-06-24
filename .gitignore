@@ -47,3 +47,6 @@ test_data.json
 dist/
 /shannon
 /shannon-test
+debug.log
+test_data.json
+*.png

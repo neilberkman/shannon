@@ -387,6 +387,10 @@ go vet ./...
 golangci-lint run ./...
 ```
 
+## Contributing
+
+Contributions are welcome! Please check our [ROADMAP.md](ROADMAP.md) for planned features and ideas.
+
 ## License
 
 MIT

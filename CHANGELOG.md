@@ -5,6 +5,13 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2025-06-24
+
+### Added
+- **Scoop package manager support**: Added Scoop bucket for Windows users
+  - Install with: `scoop bucket add shannon https://github.com/neilberkman/scoop-shannon && scoop install shannon`
+  - Automated manifest generation through GoReleaser
+
 ## [0.2.8] - 2025-06-23
 
 ### Fixed

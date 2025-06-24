@@ -17,6 +17,11 @@ This document outlines planned features and improvements for Shannon. Items are 
 - [ ] Fallback to `xclip`/`xsel`/`pbcopy` commands when available
 
 ### TUI Improvements
+- [ ] **Rich markdown rendering** in conversation view
+  - [ ] Syntax highlighting for code blocks
+  - [ ] Proper formatting for lists, headers, emphasis
+  - [ ] Table rendering
+  - [ ] Inline code styling
 - [ ] Multi-select for bulk operations (export, delete)
 - [ ] Conversation search/filter in browse mode
 - [ ] Configurable key bindings

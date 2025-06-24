@@ -2,6 +2,14 @@
 
 This document contains project-specific guidelines for Claude when working on the Shannon codebase.
 
+## CRITICAL: Duplicate Conversation View Code
+
+**THE CONVERSATION VIEW IS DUPLICATED IN browse.go AND search.go!**
+- Both files have separate implementations of artifact navigation, key handlers, etc.
+- This causes bugs where fixes in one file don't apply to the other
+- Users can reach conversations via browse OR search, so BOTH must work identically
+- This duplication MUST be unified into a single shared implementation
+
 ## Project Overview
 
 Shannon is a CLI tool for searching and browsing Claude conversation history. It uses SQLite with FTS5 (Full Text Search) for efficient searching and provides both CLI and TUI interfaces.

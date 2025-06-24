@@ -53,6 +53,7 @@ func writeToClipboard(text string) error {
 		}
 	}()
 	
+	// Try to write to clipboard
 	clipboard.Write(clipboard.FmtText, []byte(text))
 	return nil
 }

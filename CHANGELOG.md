@@ -5,6 +5,14 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2025-06-23
+
+### Fixed
+- **Critical**: Fixed panic when copying artifacts to clipboard on Linux systems
+- Added proper error handling for clipboard operations with panic recovery
+- Implemented fallback clipboard support using xclip/xsel/wl-copy on Linux
+- Show user-friendly error message when clipboard is unavailable instead of crashing
+
 ## [0.2.7] - 2025-06-23
 
 ### Added

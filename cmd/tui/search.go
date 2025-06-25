@@ -28,7 +28,8 @@ func (i searchConversationItem) Title() string {
 }
 
 func (i searchConversationItem) Description() string {
-	// Show snippet from matching messages + message count
+	dateStr := formatConversationDates(i.conv.CreatedAt, i.conv.UpdatedAt)
+
 	snippet := ""
 	if len(i.snippets) > 0 {
 		snippet = i.snippets[0]
@@ -36,11 +37,11 @@ func (i searchConversationItem) Description() string {
 		snippet = strings.ReplaceAll(snippet, "<mark>", "")
 		snippet = strings.ReplaceAll(snippet, "</mark>", "")
 		snippet = strings.ReplaceAll(snippet, "\n", " ")
-		if len(snippet) > 60 {
-			snippet = snippet[:57] + "..."
+		if len(snippet) > 50 {
+			snippet = snippet[:47] + "..."
 		}
 	}
-	return fmt.Sprintf("%d messages • %s", i.conv.MessageCount, snippet)
+	return fmt.Sprintf("%s • %d messages • %s", dateStr, i.conv.MessageCount, snippet)
 }
 
 func (i searchConversationItem) FilterValue() string {
@@ -238,7 +239,7 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Store the previous states
 			wasInArtifactMode := m.convView.focusedOnArtifact
 			wasInFindMode := m.convView.findActive
-			
+
 			// Delegate all conversation handling to convView
 			cv, cmd := m.convView.Update(msg)
 			m.convView = cv

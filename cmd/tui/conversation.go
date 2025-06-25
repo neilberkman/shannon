@@ -303,12 +303,12 @@ func (cv *conversationView) updateContent() {
 		cv.artifactIndex,
 		cv.expandedArtifacts,
 	)
-	
+
 	// Apply find highlighting if we have a query
 	if cv.findQuery != "" {
 		content = highlightMatches(content, cv.findQuery)
 	}
-	
+
 	cv.viewport.SetContent(content)
 }
 

@@ -5,6 +5,25 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2025-06-25
+
+### Added
+- **Date display in TUI**: Search and browse modes now show conversation dates
+  - Single date shown when conversation starts and ends on same day
+  - Date range shown when conversation spans multiple days
+  - Consistent formatting between browse and search modes
+
+### Changed
+- **README improvements**: 
+  - Reorganized installation section to group package managers together
+  - Updated introduction to better explain the problem Shannon solves
+  - Applied prettier formatting
+
+## [0.2.10] - 2025-06-24
+
+### Fixed
+- **CI/CD**: Fixed GoReleaser token usage in GitHub Actions workflow
+
 ## [0.2.9] - 2025-06-24
 
 ### Added

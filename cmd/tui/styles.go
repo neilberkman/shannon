@@ -1,11 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
-
 
 // Shared TUI styles
 var (
@@ -77,27 +78,27 @@ func highlightMatches(content, query string) string {
 	if query == "" {
 		return content
 	}
-	
+
 	lines := strings.Split(content, "\n")
 	queryLower := strings.ToLower(query)
-	
+
 	for i, line := range lines {
 		lineLower := strings.ToLower(line)
 		if strings.Contains(lineLower, queryLower) {
 			// Find all occurrences in the line
 			result := ""
 			lastEnd := 0
-			
+
 			for {
 				idx := strings.Index(strings.ToLower(line[lastEnd:]), queryLower)
 				if idx == -1 {
 					result += line[lastEnd:]
 					break
 				}
-				
+
 				// Add text before match
 				result += line[lastEnd : lastEnd+idx]
-				
+
 				// Add highlighted match (preserve original case)
 				matchEnd := lastEnd + idx + len(query)
 				if matchEnd > len(line) {
@@ -105,13 +106,25 @@ func highlightMatches(content, query string) string {
 				}
 				matchText := line[lastEnd+idx : matchEnd]
 				result += FindHighlightStyle.Render(matchText)
-				
+
 				lastEnd += idx + len(query)
 			}
-			
+
 			lines[i] = result
 		}
 	}
-	
+
 	return strings.Join(lines, "\n")
+}
+
+// formatConversationDates formats the date range for a conversation
+// Shows single date if created and updated on same day, otherwise shows range
+func formatConversationDates(createdAt, updatedAt time.Time) string {
+	startDate := createdAt.Format("Jan 2, 2006")
+	endDate := updatedAt.Format("Jan 2, 2006")
+
+	if startDate == endDate {
+		return startDate
+	}
+	return fmt.Sprintf("%s - %s", startDate, endDate)
 }

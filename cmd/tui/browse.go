@@ -35,9 +35,8 @@ func (i conversationItem) Title() string {
 }
 
 func (i conversationItem) Description() string {
-	return fmt.Sprintf("%d messages • Updated %s",
-		i.conv.MessageCount,
-		i.conv.UpdatedAt.Format("2006-01-02"))
+	dateStr := formatConversationDates(i.conv.CreatedAt, i.conv.UpdatedAt)
+	return fmt.Sprintf("%s • %d messages", dateStr, i.conv.MessageCount)
 }
 
 func (i conversationItem) FilterValue() string {
@@ -238,7 +237,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Store the previous states
 			wasInArtifactMode := m.convView.focusedOnArtifact
 			wasInFindMode := m.convView.findActive
-			
+
 			// Delegate all conversation handling to convView
 			cv, cmd := m.convView.Update(msg)
 			m.convView = cv

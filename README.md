@@ -1,8 +1,10 @@
 # Shannon
 
-A powerful CLI tool for searching through your exported Claude conversation history.
+Fast local search for your Claude conversation history.
 
-This tool helps you search, browse, and analyze your Claude.ai conversations with advanced full-text search capabilities, rich markdown rendering, and both CLI and TUI interfaces.
+Claude's web/desktop search is pretty lacking - no boolean operators, no date filtering, no advanced search syntax. Shannon is a local search tool that works with your exported Claude.ai conversations (not API - this is for your regular Claude.ai chats). It supports AND/OR/NOT operators, wildcard search, date ranges, sender filtering, and more.
+
+The TUI mode is particularly useful - you can navigate between conversations, jump back to Claude.ai, and copy/save artifacts directly. The whole process of generating exports and importing them incrementally is designed to be as painless as possible, with auto-discovery of export files and incremental updates.
 
 > **Note**: This is an unofficial tool not affiliated with Anthropic.
 
@@ -22,22 +24,25 @@ This tool helps you search, browse, and analyze your Claude.ai conversations wit
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### Package Managers
+
+#### Homebrew (macOS/Linux)
 
 ```bash
 brew install neilberkman/shannon/shannon
+```
+
+#### Scoop (Windows)
+
+```bash
+scoop bucket add shannon https://github.com/neilberkman/scoop-shannon
+scoop install shannon
 ```
 
 ### Install Script (macOS/Linux)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/neilberkman/shannon/main/install.sh | bash
-```
-
-### From Source
-
-```bash
-go install github.com/neilberkman/shannon@latest
 ```
 
 ### Pre-built Binaries
@@ -48,11 +53,10 @@ Download the latest release for your platform from the [releases page](https://g
 - **Linux**: `shannon_x.x.x_linux_amd64.tar.gz` or `shannon_x.x.x_linux_arm64.tar.gz`
 - **Windows**: `shannon_x.x.x_windows_amd64.zip` or `shannon_x.x.x_windows_arm64.zip`
 
-### Scoop (Windows)
+### From Source
 
 ```bash
-scoop bucket add shannon https://github.com/neilberkman/scoop-shannon
-scoop install shannon
+go install github.com/neilberkman/shannon@latest
 ```
 
 ## Quick Start
@@ -74,7 +78,7 @@ shannon tui  # Interactive browser
 
 First, you need to export your conversation data from Claude:
 
-1. Go to [Claude Data Privacy Controls](https://claude.ai/settings/data-privacy-controls){:target="_blank"}
+1. Go to [Claude Data Privacy Controls](https://claude.ai/settings/data-privacy-controls){:target="\_blank"}
 2. In the **Data controls** section, click **Export data**
 3. Claude will send you an email with a download link
 4. Download and extract the ZIP file
@@ -240,7 +244,7 @@ TUI Keyboard Shortcuts:
 
 - **Browse Mode**:
   - `↑/↓`: Navigate conversations
-  - `Enter`: View conversation  
+  - `Enter`: View conversation
   - `/`: Search
   - `q`: Quit application
 
@@ -273,8 +277,9 @@ TUI Keyboard Shortcuts:
   - `q`: Quit application
 
 **TUI Features:**
+
 - 🔍 **In-conversation search** - Find and highlight text within conversations
-- 🔙 **Browser-like navigation** - ESC acts as back button, q quits completely  
+- 🔙 **Browser-like navigation** - ESC acts as back button, q quits completely
 - 💬 **Conversation-centric results** - Search shows conversations, not individual messages
 - 📍 **Smart positioning** - Conversations start at the first message when opened
 - ⌨️ **Consistent shortcuts** - Standard vim-like navigation (g/G for top/bottom)

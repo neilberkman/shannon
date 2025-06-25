@@ -5,7 +5,7 @@ package tui
 import (
 	"fmt"
 	"os"
-	
+
 	clipboard "golang.design/x/clipboard"
 )
 
@@ -18,7 +18,7 @@ func initClipboard() error {
 	if os.Getenv("GO_TEST") == "1" || os.Getenv("CI") != "" {
 		return nil
 	}
-	
+
 	// Catch any panics from clipboard.Init()
 	defer func() {
 		if r := recover(); r != nil {
@@ -26,7 +26,7 @@ func initClipboard() error {
 			clipboardInitialized = false
 		}
 	}()
-	
+
 	clipboardErr = clipboard.Init()
 	clipboardInitialized = (clipboardErr == nil)
 	return clipboardErr
@@ -38,21 +38,21 @@ func writeToClipboard(text string) error {
 	if os.Getenv("GO_TEST") == "1" || os.Getenv("CI") != "" {
 		return nil
 	}
-	
+
 	if !clipboardInitialized {
 		if clipboardErr != nil {
 			return clipboardErr
 		}
 		return fmt.Errorf("clipboard not initialized")
 	}
-	
+
 	// Catch any panics from clipboard.Write()
 	defer func() {
 		if r := recover(); r != nil {
 			clipboardErr = fmt.Errorf("clipboard write panicked: %v", r)
 		}
 	}()
-	
+
 	// Try to write to clipboard
 	clipboard.Write(clipboard.FmtText, []byte(text))
 	return nil

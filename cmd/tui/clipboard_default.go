@@ -32,20 +32,20 @@ func writeToClipboard(text string) error {
 		cmd.Stdin = bytes.NewReader([]byte(text))
 		return cmd.Run()
 	}
-	
+
 	// Try xsel
 	if _, err := exec.LookPath("xsel"); err == nil {
 		cmd := exec.Command("xsel", "--clipboard", "--input")
 		cmd.Stdin = bytes.NewReader([]byte(text))
 		return cmd.Run()
 	}
-	
+
 	// Try wl-copy for Wayland
 	if _, err := exec.LookPath("wl-copy"); err == nil {
 		cmd := exec.Command("wl-copy")
 		cmd.Stdin = bytes.NewReader([]byte(text))
 		return cmd.Run()
 	}
-	
+
 	return fmt.Errorf("no clipboard tool available")
 }

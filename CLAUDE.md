@@ -112,12 +112,18 @@ go build
 
 ## Release Process
 
-1. Update version in code if needed
-2. Update CHANGELOG.md with all changes
-3. Run full test suite and linter
-4. Commit with descriptive message
-5. Tag release: `git tag v0.2.5`
-6. Push with tags: `git push origin main --tags`
+The release process is automated using GoReleaser via a GitHub Actions workflow.
+
+1.  Ensure the `CHANGELOG.md` is up-to-date with all relevant changes for the new release.
+2.  Commit any final changes.
+3.  Create a new version tag (e.g., `git tag v0.2.5`).
+4.  Push the tag to the `main` branch (`git push origin main --tags`).
+
+Pushing a new `v*` tag will automatically trigger the release workflow, which will:
+- Run all tests and linters.
+- Build the binaries for all supported platforms.
+- Create a new GitHub Release with the artifacts.
+- Publish packages to Homebrew, Scoop, etc. as configured in `.goreleaser.yml`.
 
 ## Architecture Notes
 

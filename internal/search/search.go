@@ -22,6 +22,11 @@ func NewEngine(database *db.DB) *Engine {
 	return &Engine{db: database}
 }
 
+// DB returns the underlying database connection. This is intended for use in tests.
+func (e *Engine) DB() *db.DB {
+	return e.db
+}
+
 // SearchOptions contains search parameters
 type SearchOptions struct {
 	Query          string

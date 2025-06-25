@@ -43,7 +43,11 @@ func init() {
 
 func runImport(cmd *cobra.Command, args []string) error {
 	filePath := args[0]
+	return ImportFile(filePath, force)
+}
 
+// ImportFile imports a single Claude export file - exported for use by other commands
+func ImportFile(filePath string, forceImport bool) error {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filePath)

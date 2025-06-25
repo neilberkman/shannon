@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -42,15 +43,68 @@ func NewScanner() *Scanner {
 
 	// Add default Downloads directory
 	if downloadsDir, err := platform.GetDownloadsDir(); err == nil {
-		scanner.searchPaths = append(scanner.searchPaths, downloadsDir)
+		// Normalize to absolute path
+		if absPath, err := filepath.Abs(downloadsDir); err == nil {
+			scanner.searchPaths = append(scanner.searchPaths, absPath)
+		} else {
+			scanner.searchPaths = append(scanner.searchPaths, downloadsDir)
+		}
 	}
 
+	// Add browser-specific download locations
+	scanner.addBrowserDownloadPaths()
+
 	return scanner
+}
+
+// addBrowserDownloadPaths adds common browser-specific download directories
+func (s *Scanner) addBrowserDownloadPaths() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	// Common additional download locations
+	additionalPaths := []string{
+		// Many users save to Desktop
+		filepath.Join(home, "Desktop"),
+		// Some Windows users might have Downloads in Documents
+		filepath.Join(home, "Documents", "Downloads"),
+	}
+
+	// Add paths that exist
+	for _, path := range additionalPaths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			// Resolve to absolute path to handle case-insensitive filesystems and symlinks
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				continue
+			}
+
+			// Check if we already have this path (comparing absolute paths)
+			duplicate := false
+			for _, existing := range s.searchPaths {
+				existingAbs, _ := filepath.Abs(existing)
+				if existingAbs == absPath {
+					duplicate = true
+					break
+				}
+			}
+			if !duplicate {
+				s.searchPaths = append(s.searchPaths, absPath)
+			}
+		}
+	}
 }
 
 // AddSearchPath adds an additional directory to search
 func (s *Scanner) AddSearchPath(path string) {
 	s.searchPaths = append(s.searchPaths, path)
+}
+
+// GetSearchPaths returns the list of paths that will be searched
+func (s *Scanner) GetSearchPaths() []string {
+	return s.searchPaths
 }
 
 // ScanForExports finds Claude export files in the configured paths
@@ -84,34 +138,58 @@ func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 		return exports, nil // Empty slice, no error
 	}
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip files with errors
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if this looks like a Claude export
-		if s.isLikelyClaudeExport(path, info) {
+	// First, look for conversations.json directly in the directory
+	convPath := filepath.Join(dir, "conversations.json")
+	if info, err := os.Stat(convPath); err == nil && !info.IsDir() {
+		if s.isLikelyClaudeExport(convPath, info) {
 			export := &ExportFile{
-				Path:    path,
+				Path:    convPath,
 				Size:    info.Size(),
 				ModTime: info.ModTime(),
 			}
-
-			// Validate and preview the file
-			export.IsValid, export.ErrorMessage, export.Preview = s.validateAndPreview(path)
-
+			export.IsValid, export.ErrorMessage, export.Preview = s.validateAndPreview(convPath)
 			exports = append(exports, export)
 		}
+	}
 
-		return nil
-	})
+	// Then, look for data-YYYY* directories
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return exports, nil // Return what we have so far
+	}
 
-	return exports, err
+	for _, entry := range entries {
+		name := entry.Name()
+
+		if entry.IsDir() {
+			// Check if this is a data export directory (data-YYYY-MM-DD-HH-MM-SS format)
+			if strings.HasPrefix(name, "data-20") || strings.HasPrefix(name, "data-19") {
+				// Look for conversations.json inside this directory
+				subPath := filepath.Join(dir, name, "conversations.json")
+				if info, err := os.Stat(subPath); err == nil && !info.IsDir() {
+					export := &ExportFile{
+						Path:    subPath,
+						Size:    info.Size(),
+						ModTime: info.ModTime(),
+					}
+					export.IsValid, export.ErrorMessage, export.Preview = s.validateAndPreview(subPath)
+					exports = append(exports, export)
+				}
+			}
+		} else {
+			// Check if this is a zip file that might contain Claude exports
+			if strings.HasSuffix(strings.ToLower(name), ".zip") &&
+				(strings.Contains(name, "data-20") || strings.Contains(name, "claude") ||
+					strings.Contains(name, "export") || strings.Contains(name, "conversations")) {
+				zipPath := filepath.Join(dir, name)
+				if zipExports := s.scanZipFile(zipPath); len(zipExports) > 0 {
+					exports = append(exports, zipExports...)
+				}
+			}
+		}
+	}
+
+	return exports, nil
 }
 
 // isLikelyClaudeExport checks if a file looks like a Claude export
@@ -241,4 +319,115 @@ func (s *Scanner) GetRecentExports(since time.Duration) ([]*ExportFile, error) {
 	}
 
 	return recent, nil
+}
+
+// scanZipFile looks for Claude export files inside a zip archive
+func (s *Scanner) scanZipFile(zipPath string) []*ExportFile {
+	var exports []*ExportFile
+
+	// Get file info for the zip
+	zipInfo, err := os.Stat(zipPath)
+	if err != nil {
+		return exports
+	}
+
+	// Open the zip file
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return exports
+	}
+	defer func() {
+		if err := reader.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close zip reader: %v\n", err)
+		}
+	}()
+
+	// Look for conversations.json files in the zip
+	for _, file := range reader.File {
+		// Check if this is a conversations.json file
+		if filepath.Base(file.Name) == "conversations.json" {
+			// Validate the file inside the zip
+			isValid, errorMsg, preview := s.validateZipEntry(file)
+
+			export := &ExportFile{
+				Path:         fmt.Sprintf("%s!%s", zipPath, file.Name), // Use ! to indicate file inside zip
+				Size:         int64(file.UncompressedSize64),
+				ModTime:      zipInfo.ModTime(), // Use zip file's mod time
+				IsValid:      isValid,
+				ErrorMessage: errorMsg,
+				Preview:      preview,
+			}
+
+			exports = append(exports, export)
+		}
+	}
+
+	return exports
+}
+
+// validateZipEntry validates a conversations.json file inside a zip archive
+func (s *Scanner) validateZipEntry(file *zip.File) (bool, string, *ExportPreview) {
+	// Open the file inside the zip
+	reader, err := file.Open()
+	if err != nil {
+		return false, fmt.Sprintf("Cannot open file in zip: %v", err), nil
+	}
+	defer func() {
+		_ = reader.Close() // Best effort close for zip entries
+	}()
+
+	// Try to parse as JSON array of conversations
+	var conversations []models.ClaudeConversation
+	decoder := json.NewDecoder(reader)
+
+	if err := decoder.Decode(&conversations); err != nil {
+		return false, fmt.Sprintf("Invalid JSON format: %v", err), nil
+	}
+
+	if len(conversations) == 0 {
+		return false, "No conversations found in export", nil
+	}
+
+	// Validate structure - check first conversation
+	conv := conversations[0]
+	if conv.UUID == "" || conv.Name == "" {
+		return false, "Invalid conversation structure - missing required fields", nil
+	}
+
+	// Create preview
+	preview := &ExportPreview{
+		ConversationCount: len(conversations),
+		FirstConvName:     conv.Name,
+	}
+
+	// Count total messages and find date range
+	var messageCount int
+	var minDate, maxDate time.Time
+
+	for _, c := range conversations {
+		messageCount += len(c.ChatMessages)
+
+		if convTime, err := time.Parse(time.RFC3339, c.CreatedAt); err == nil {
+			if minDate.IsZero() || convTime.Before(minDate) {
+				minDate = convTime
+			}
+			if maxDate.IsZero() || convTime.After(maxDate) {
+				maxDate = convTime
+			}
+		}
+	}
+
+	preview.MessageCount = messageCount
+
+	if !minDate.IsZero() && !maxDate.IsZero() {
+		if minDate.Year() == maxDate.Year() && minDate.Month() == maxDate.Month() {
+			preview.DateRange = minDate.Format("Jan 2006")
+		} else {
+			preview.DateRange = fmt.Sprintf("%s - %s",
+				minDate.Format("Jan 2006"),
+				maxDate.Format("Jan 2006"))
+		}
+	}
+
+	return true, "", preview
 }

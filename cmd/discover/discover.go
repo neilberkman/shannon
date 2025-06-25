@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	imports "github.com/neilberkman/shannon/cmd/import"
 	"github.com/neilberkman/shannon/internal/discovery"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +19,7 @@ var (
 	recentDuration string
 	autoImport     bool
 	showInvalid    bool
+	verbose        bool
 )
 
 // DiscoverCmd represents the discover command
@@ -45,6 +47,7 @@ func init() {
 	DiscoverCmd.Flags().StringVarP(&recentDuration, "duration", "d", "7d", "duration for recent exports (e.g., 1h, 24h, 7d, 30d)")
 	DiscoverCmd.Flags().BoolVarP(&autoImport, "auto-import", "a", false, "automatically import any new valid exports found")
 	DiscoverCmd.Flags().BoolVar(&showInvalid, "show-invalid", false, "show files that look like exports but are invalid")
+	DiscoverCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show which directories are being searched")
 }
 
 func runDiscover(cmd *cobra.Command, args []string) error {
@@ -53,6 +56,16 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 	// Add additional search paths
 	for _, path := range includePaths {
 		scanner.AddSearchPath(path)
+	}
+
+	// Show search paths if verbose
+	if verbose {
+		paths := scanner.GetSearchPaths()
+		fmt.Println("Searching in:")
+		for _, path := range paths {
+			fmt.Printf("  - %s\n", path)
+		}
+		fmt.Println()
 	}
 
 	var exports []*discovery.ExportFile
@@ -104,11 +117,32 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 
 	// Auto-import if requested
 	if autoImport && len(validExports) > 0 {
-		fmt.Printf("\nAuto-importing %d valid export(s)...\n", len(validExports))
+		// Get unique paths to avoid importing duplicates
+		uniqueExports := make(map[string]*discovery.ExportFile)
 		for _, export := range validExports {
-			fmt.Printf("Importing: %s\n", filepath.Base(export.Path))
-			// TODO: Integrate with import functionality
-			// This would call the import logic directly
+			uniqueExports[export.Path] = export
+		}
+
+		fmt.Printf("\nImporting %d unique export(s)...\n\n", len(uniqueExports))
+
+		successCount := 0
+		for path, export := range uniqueExports {
+			// Skip zip files for now (would need to extract first)
+			if strings.Contains(export.Path, "!") {
+				fmt.Printf("⚠️  Skipping zip file: %s (extraction not yet supported)\n", filepath.Base(path))
+				continue
+			}
+
+			if err := imports.ImportFile(path, false); err != nil {
+				fmt.Printf("❌ Failed to import %s: %v\n", filepath.Base(path), err)
+			} else {
+				successCount++
+			}
+			fmt.Println() // Add spacing between imports
+		}
+
+		if successCount > 0 {
+			fmt.Printf("✓ Successfully imported %d file(s)\n", successCount)
 		}
 	}
 
@@ -174,6 +208,30 @@ func displayExportTable(exports []*discovery.ExportFile) error {
 	for _, export := range exports {
 		if !export.IsValid {
 			fmt.Printf("⚠️  %s: %s\n", filepath.Base(export.Path), export.ErrorMessage)
+		}
+	}
+
+	// Show import suggestion if we found valid exports and not in the main runDiscover function
+	if validCount > 0 {
+		// Get unique valid export paths (to handle duplicates)
+		uniquePaths := make(map[string]bool)
+		for _, export := range exports {
+			if export.IsValid {
+				uniquePaths[export.Path] = true
+			}
+		}
+
+		if len(uniquePaths) > 0 {
+			fmt.Println("\nTo import a file:")
+			// Show the first unique valid export as an example
+			for path := range uniquePaths {
+				fmt.Printf("  shannon import \"%s\"\n", path)
+				break
+			}
+			if len(uniquePaths) > 1 {
+				fmt.Println("\nOr import all discovered files:")
+				fmt.Println("  shannon discover --auto-import")
+			}
 		}
 	}
 

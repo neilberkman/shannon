@@ -5,6 +5,26 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12] - 2025-06-25
+
+### Added
+- **Discover command improvements**:
+  - Now searches in data-YYYY* subdirectories within Downloads
+  - Added support for checking inside zip files without extraction
+  - Shows full file paths to distinguish between duplicates
+  - Added `--verbose` flag to show which directories are being searched
+  - Helpful import suggestions when files are found
+
+### Fixed
+- **Critical bug**: `shannon discover --auto-import` now actually imports files instead of just printing filenames
+- **Duplicate detection**: Fixed duplicate entries on case-insensitive filesystems
+
+### Changed
+- **Downloads detection**: Now uses `adrg/xdg` library for reliable cross-platform Downloads directory detection
+  - Properly handles XDG_DOWNLOAD_DIR on Linux
+  - Works correctly with customized download locations
+  - Eliminated duplicate entries from incorrect path detection
+
 ## [0.2.11] - 2025-06-25
 
 ### Added

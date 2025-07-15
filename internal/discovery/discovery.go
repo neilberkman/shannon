@@ -204,11 +204,6 @@ func (s *Scanner) isLikelyClaudeExport(path string, info os.FileInfo) bool {
 		return false
 	}
 
-	// Skip very large files (> 500MB) - probably not exports
-	if info.Size() > 500*1024*1024 {
-		return false
-	}
-
 	filename := strings.ToLower(filepath.Base(path))
 
 	// Common Claude export filename patterns
@@ -260,8 +255,8 @@ func (s *Scanner) validateAndPreview(path string) (bool, string, *ExportPreview)
 
 	// Validate structure - check first conversation
 	conv := conversations[0]
-	if conv.UUID == "" || conv.Name == "" {
-		return false, "Invalid conversation structure - missing required fields", nil
+	if conv.UUID == "" {
+		return false, "Invalid conversation structure - missing UUID", nil
 	}
 
 	// Create preview
@@ -390,8 +385,8 @@ func (s *Scanner) validateZipEntry(file *zip.File) (bool, string, *ExportPreview
 
 	// Validate structure - check first conversation
 	conv := conversations[0]
-	if conv.UUID == "" || conv.Name == "" {
-		return false, "Invalid conversation structure - missing required fields", nil
+	if conv.UUID == "" {
+		return false, "Invalid conversation structure - missing UUID", nil
 	}
 
 	// Create preview

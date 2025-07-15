@@ -5,6 +5,12 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2025-07-15
+
+### Fixed
+- **Discovery validation**: Fixed bug where conversations with empty names were incorrectly rejected as invalid
+- **File size limit**: Removed unnecessary 500MB file size limit for conversation exports
+
 ## [0.2.12] - 2025-06-25
 
 ### Added

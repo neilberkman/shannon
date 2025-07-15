@@ -57,15 +57,14 @@ func setupTestDB(t *testing.T) *search.Engine {
 		t.Fatalf("failed to create in-memory db: %v", err)
 	}
 
-	
-
 	engine := search.NewEngine(database)
 
-	// Insert synthetic data
+	// Insert synthetic data with fixed dates for consistent testing
+	fixedTime := time.Date(2025, 6, 25, 10, 0, 0, 0, time.UTC)
 	convs := []*models.Conversation{
-		{ID: 1, UUID: "uuid-1", Name: "Test Conversation 1", CreatedAt: time.Now().Add(-2 * time.Hour), UpdatedAt: time.Now().Add(-1 * time.Hour), MessageCount: 5},
-		{ID: 2, UUID: "uuid-2", Name: "Another Test Convo", CreatedAt: time.Now().Add(-3 * time.Hour), UpdatedAt: time.Now().Add(-2 * time.Hour), MessageCount: 10},
-		{ID: 3, UUID: "uuid-3", Name: "Final Test", CreatedAt: time.Now().Add(-4 * time.Hour), UpdatedAt: time.Now().Add(-3 * time.Hour), MessageCount: 2},
+		{ID: 1, UUID: "uuid-1", Name: "Test Conversation 1", CreatedAt: fixedTime.Add(-2 * time.Hour), UpdatedAt: fixedTime.Add(-1 * time.Hour), MessageCount: 5},
+		{ID: 2, UUID: "uuid-2", Name: "Another Test Convo", CreatedAt: fixedTime.Add(-3 * time.Hour), UpdatedAt: fixedTime.Add(-2 * time.Hour), MessageCount: 10},
+		{ID: 3, UUID: "uuid-3", Name: "Final Test", CreatedAt: fixedTime.Add(-4 * time.Hour), UpdatedAt: fixedTime.Add(-3 * time.Hour), MessageCount: 2},
 	}
 
 	for _, c := range convs {

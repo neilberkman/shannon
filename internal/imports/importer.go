@@ -65,8 +65,10 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil {
-			// Only log if it's not already committed
-			fmt.Fprintf(os.Stderr, "Warning: failed to rollback transaction: %v\n", err)
+			// Only log if it's not already committed and not a "transaction already committed" error
+			if err != sql.ErrTxDone {
+				fmt.Fprintf(os.Stderr, "Warning: failed to rollback transaction: %v\n", err)
+			}
 		}
 	}()
 

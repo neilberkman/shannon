@@ -123,26 +123,50 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			uniqueExports[export.Path] = export
 		}
 
-		fmt.Printf("\nImporting %d unique export(s)...\n\n", len(uniqueExports))
+		fmt.Printf("\nProcessing %d file(s)...\n", len(uniqueExports))
 
 		successCount := 0
+		skippedCount := 0
+		failedCount := 0
 		for path, export := range uniqueExports {
 			// Skip zip files for now (would need to extract first)
 			if strings.Contains(export.Path, "!") {
-				fmt.Printf("⚠️  Skipping zip file: %s (extraction not yet supported)\n", filepath.Base(path))
+				fmt.Printf("  ⚠️  Skipping zip file: %s (extraction not yet supported)\n", filepath.Base(path))
 				continue
 			}
 
-			if err := imports.ImportFile(path, false); err != nil {
-				fmt.Printf("❌ Failed to import %s: %v\n", filepath.Base(path), err)
+			filename := filepath.Base(path)
+			fmt.Printf("  • %s... ", filename)
+
+			if err := imports.ImportFileQuiet(path, false, true); err != nil {
+				// Check if this is just an already-imported file
+				if strings.Contains(err.Error(), "file already imported") {
+					skippedCount++
+					fmt.Printf("already imported\n")
+				} else {
+					failedCount++
+					fmt.Printf("failed: %v\n", err)
+				}
 			} else {
 				successCount++
+				fmt.Printf("✓ imported\n")
 			}
-			fmt.Println() // Add spacing between imports
 		}
 
-		if successCount > 0 {
-			fmt.Printf("✓ Successfully imported %d file(s)\n", successCount)
+		// Summary message
+		fmt.Println()
+		if successCount > 0 || skippedCount > 0 || failedCount > 0 {
+			parts := []string{}
+			if successCount > 0 {
+				parts = append(parts, fmt.Sprintf("%d new", successCount))
+			}
+			if skippedCount > 0 {
+				parts = append(parts, fmt.Sprintf("%d already imported", skippedCount))
+			}
+			if failedCount > 0 {
+				parts = append(parts, fmt.Sprintf("%d failed", failedCount))
+			}
+			fmt.Printf("Summary: %s\n", strings.Join(parts, ", "))
 		}
 	}
 

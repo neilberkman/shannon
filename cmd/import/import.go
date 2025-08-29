@@ -48,6 +48,11 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 // ImportFile imports a single Claude export file - exported for use by other commands
 func ImportFile(filePath string, forceImport bool) error {
+	return ImportFileQuiet(filePath, forceImport, false)
+}
+
+// ImportFileQuiet imports a single Claude export file with optional quiet mode
+func ImportFileQuiet(filePath string, forceImport bool, quiet bool) error {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filePath)
@@ -63,7 +68,9 @@ func ImportFile(filePath string, forceImport bool) error {
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+			}
 		}
 	}()
 
@@ -71,23 +78,27 @@ func ImportFile(filePath string, forceImport bool) error {
 	importer := imports.NewImporter(database, cfg.Import.BatchSize, cfg.Import.Verbose || viper.GetBool("verbose"))
 
 	// Import file
-	fmt.Printf("Importing %s...\n", filePath)
+	if !quiet {
+		fmt.Printf("Importing %s...\n", filePath)
+	}
 	stats, err := importer.Import(filePath)
 	if err != nil {
 		return fmt.Errorf("import failed: %w", err)
 	}
 
-	// Print statistics
-	fmt.Printf("\nImport completed in %s:\n", stats.Duration)
-	fmt.Printf("  Conversations imported: %d\n", stats.ConversationsImported)
-	fmt.Printf("  Messages imported: %d\n", stats.MessagesImported)
-	fmt.Printf("  Branches detected: %d\n", stats.BranchesDetected)
+	// Print statistics only if not quiet
+	if !quiet {
+		fmt.Printf("\nImport completed in %s:\n", stats.Duration)
+		fmt.Printf("  Conversations imported: %d\n", stats.ConversationsImported)
+		fmt.Printf("  Messages imported: %d\n", stats.MessagesImported)
+		fmt.Printf("  Branches detected: %d\n", stats.BranchesDetected)
 
-	if len(stats.Errors) > 0 {
-		fmt.Printf("\nErrors encountered: %d\n", len(stats.Errors))
-		if viper.GetBool("verbose") {
-			for _, err := range stats.Errors {
-				fmt.Printf("  - %v\n", err)
+		if len(stats.Errors) > 0 {
+			fmt.Printf("\nErrors encountered: %d\n", len(stats.Errors))
+			if viper.GetBool("verbose") {
+				for _, err := range stats.Errors {
+					fmt.Printf("  - %v\n", err)
+				}
 			}
 		}
 	}

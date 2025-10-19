@@ -9,6 +9,7 @@ import (
 	"github.com/neilberkman/shannon/internal/artifacts"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/export"
 	"github.com/neilberkman/shannon/internal/search"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ var (
 	showBranches  bool
 	showArtifacts bool
 	fullArtifacts bool
+	outputFile    string
 )
 
 // ViewCmd represents the view command
@@ -29,7 +31,9 @@ Example:
   shannon view 123
   shannon view 123 --branches
   shannon view 123 --show-artifacts
-  shannon view 123 --full-artifacts`,
+  shannon view 123 --full-artifacts
+  shannon view 123 --output conversation.md
+  shannon view 123 -o conversation.md`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
 }
@@ -38,6 +42,7 @@ func init() {
 	ViewCmd.Flags().BoolVar(&showBranches, "branches", false, "show branch information")
 	ViewCmd.Flags().BoolVar(&showArtifacts, "show-artifacts", true, "show artifacts inline")
 	ViewCmd.Flags().BoolVar(&fullArtifacts, "full-artifacts", false, "show complete artifact content")
+	ViewCmd.Flags().StringVarP(&outputFile, "output", "o", "", "export conversation to markdown file")
 }
 
 func runView(cmd *cobra.Command, args []string) error {
@@ -68,6 +73,17 @@ func runView(cmd *cobra.Command, args []string) error {
 	conv, messages, err := engine.GetConversation(convID)
 	if err != nil {
 		return fmt.Errorf("failed to get conversation: %w", err)
+	}
+
+	// If output file specified, export to markdown and exit
+	if outputFile != "" {
+		// Use provided filename or generate default
+		filename := outputFile
+		if err := export.ConversationToMarkdown(conv, messages, filename); err != nil {
+			return fmt.Errorf("failed to export conversation: %w", err)
+		}
+		fmt.Printf("Conversation exported to: %s\n", filename)
+		return nil
 	}
 
 	// Display conversation info

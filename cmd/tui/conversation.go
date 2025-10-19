@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/neilberkman/shannon/internal/artifacts"
+	"github.com/neilberkman/shannon/internal/export"
 	"github.com/neilberkman/shannon/internal/models"
 )
 
@@ -207,13 +208,15 @@ func (cv conversationView) Update(msg tea.Msg) (conversationView, tea.Cmd) {
 					}
 				}
 			case "s":
-				// Save current artifact if focused
+				// Save current artifact if focused, otherwise save full conversation
 				if cv.focusedOnArtifact {
 					cv.saveCurrentArtifact()
-					cmds = append(cmds, tea.Tick(time.Millisecond*100, func(time.Time) tea.Msg {
-						return tickMsg{}
-					}))
+				} else {
+					cv.saveConversationToMarkdown()
 				}
+				cmds = append(cmds, tea.Tick(time.Millisecond*100, func(time.Time) tea.Msg {
+					return tickMsg{}
+				}))
 			case "c":
 				// Copy current artifact to clipboard if focused
 				if cv.focusedOnArtifact {
@@ -265,10 +268,10 @@ func (cv conversationView) View() string {
 		if cv.focusedOnArtifact {
 			help = HelpStyle.Render("esc: exit focus • tab: expand/collapse • n/N: navigate • s: save • c: copy • o: open • q: quit")
 		} else {
-			help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev • a: focus artifact • o: open in claude.ai • esc: back • q: quit")
+			help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev • a: focus artifact • s: save • o: open in claude.ai • esc: back • q: quit")
 		}
 	} else {
-		help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev match • o: open in claude.ai • esc: back • q: quit")
+		help = HelpStyle.Render("↑/↓: scroll • g/G: top/bottom • /f: find • n/N: next/prev match • s: save • o: open in claude.ai • esc: back • q: quit")
 	}
 
 	// Add notification if present
@@ -455,6 +458,26 @@ func (cv *conversationView) getCurrentMessageWithArtifact() int64 {
 		return cv.messages[cv.messageIndex].ID
 	}
 	return 0
+}
+
+// saveConversationToMarkdown saves the full conversation to a markdown file
+func (cv *conversationView) saveConversationToMarkdown() {
+	if cv.conversation == nil {
+		return
+	}
+
+	// Generate filename using the export package helper
+	filename := export.GenerateDefaultFilename(cv.conversation)
+
+	// Save using the export package
+	err := export.ConversationToMarkdown(cv.conversation, cv.messages, filename)
+	if err != nil {
+		cv.notification = fmt.Sprintf("Error: %v", err)
+		cv.notificationTimer = 30 // 3 seconds
+	} else {
+		cv.notification = fmt.Sprintf("✓ Saved to %s", filename)
+		cv.notificationTimer = 20 // 2 seconds
+	}
 }
 
 // saveCurrentArtifact saves the currently focused artifact to a file

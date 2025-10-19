@@ -5,6 +5,16 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.15] - 2025-10-18
+
+### Added
+
+- **Markdown export for conversations**:
+  - CLI: `shannon view <id> --output <file>` or `-o <file>` to save conversation as markdown
+  - TUI: Press 's' to save current conversation with auto-generated filename
+  - Exports include all messages, timestamps, and formatted artifacts
+  - Creates sanitized filenames from conversation names
+
 ## [0.2.14] - 2025-08-29
 
 ### Changed

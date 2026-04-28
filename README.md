@@ -16,7 +16,8 @@ The TUI mode is particularly useful - you can navigate between conversations, ju
 - 💻 **Cross-platform** - Works on macOS, Linux, and Windows (6 architectures)
 - 🚀 **Fast** - Single Go binary with embedded database
 - 🎨 **Multiple interfaces** - CLI for scripting, TUI for interactive use
-- 🔄 **Auto-discovery** - Automatically finds Claude export files
+- 🔄 **Auto-discovery** - Automatically finds Claude export files (incremental: unchanged files skip without re-reading)
+- 🤖 **MCP server** - Expose your conversation history to Claude Code or any MCP client
 - 📤 **Export formats** - JSON, CSV, and Markdown output
 - 🔗 **Pipeline-friendly** - Designed for Unix pipeline integration
 - 📊 **Statistics** - Detailed database and conversation analytics
@@ -326,6 +327,26 @@ shannon recent --format id | \
     shannon export $id | head -20
   done
 ```
+
+## MCP Server (Claude Code Integration)
+
+Shannon can run as a [Model Context Protocol](https://modelcontextprotocol.io/) server, letting Claude Code (or any MCP-compatible client) search your imported conversation history during a chat.
+
+### Install
+
+```bash
+claude mcp add --scope user shannon $(which shannon) serve-mcp
+```
+
+### Tools exposed
+
+- `search_conversations` — full-text search with FTS5; supports AND/OR/NOT, phrases, prefix wildcards, sender filter, and date range
+- `list_recent_conversations` — most recently updated conversations
+- `get_conversation_messages` — fetch a conversation by UUID with `last_n` (tail), `around_sequence` (load context around a search hit), or full transcript modes
+
+Responses are budgeted to ~9k tokens and truncate gracefully when a conversation or result set is too large for a single reply.
+
+The server reads from your existing shannon database — make sure you've run `shannon discover --auto-import` (or `shannon import`) first.
 
 ## Configuration
 

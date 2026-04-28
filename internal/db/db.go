@@ -34,6 +34,15 @@ func New(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
+	// Apply schema migrations on top of the base schema. Migrations are
+	// idempotent so this is safe on fresh databases too.
+	if err := db.migrate(); err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to apply migrations: %w (also failed to close connection: %v)", err, closeErr)
+		}
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -132,9 +141,14 @@ func (db *DB) initSchema() error {
 		conversations_count INTEGER,
 		messages_count INTEGER,
 		status TEXT NOT NULL CHECK(status IN ('success', 'partial', 'failed')),
-		error_message TEXT
+		error_message TEXT,
+		file_size INTEGER,
+		file_mtime DATETIME,
+		file_inode INTEGER,
+		file_device INTEGER
 	);
 	CREATE INDEX IF NOT EXISTS idx_import_history_file_hash ON import_history(file_hash);
+	CREATE INDEX IF NOT EXISTS idx_import_history_file_path ON import_history(file_path);
 	
 	-- Metadata table for database versioning
 	CREATE TABLE IF NOT EXISTS metadata (

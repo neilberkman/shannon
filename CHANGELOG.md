@@ -5,6 +5,25 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-28
+
+### Added
+
+- **MCP server (`shannon serve-mcp`)**:
+  - Exposes shannon search to Claude Code (and any MCP-compatible client) over stdio
+  - Tools: `search_conversations`, `list_recent_conversations`, `get_conversation_messages`
+  - Response token budgeting (~9k tokens) with graceful truncation so responses stay under Claude Code's warning threshold
+  - Add to Claude Code: `claude mcp add --scope user shannon $(which shannon) serve-mcp`
+- **Incremental import fast path**:
+  - Re-running `shannon discover --auto-import` on unchanged files no longer reads or hashes them — `os.Stat` alone is enough to skip
+  - Tracks `(file_size, file_mtime, file_inode, file_device)` per import; falls back to SHA-256 hash on cloud drives or filesystems without inode information
+  - Mtime drift within 1s is tolerated (handles cloud-sync clients that rewrite subsecond precision)
+- **Schema migrations framework** (internal): `import_history` now grows new columns via versioned, idempotent migrations applied at startup
+
+### Fixed
+
+- **Discovery now finds Anthropic's new export folder format**: Anthropic switched export folder naming from `data-YYYY-MM-DD-HH-MM-SS-batch-NNNN` to a UUID-style format (`data-<uuid>-...-batch-NNNN`). The discover scanner was hardcoded to the date prefix and silently skipped the new layout. Any folder starting with `data-` and containing a `conversations.json` is now considered.
+
 ## [0.2.15] - 2025-10-18
 
 ### Added

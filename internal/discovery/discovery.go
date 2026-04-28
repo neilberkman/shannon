@@ -162,8 +162,10 @@ func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 		name := entry.Name()
 
 		if entry.IsDir() {
-			// Check if this is a data export directory (data-YYYY-MM-DD-HH-MM-SS format)
-			if strings.HasPrefix(name, "data-20") || strings.HasPrefix(name, "data-19") {
+			// Claude export directories start with "data-" (older form: data-YYYY-MM-DD-...,
+			// newer form: data-<uuid>-...-batch-NNNN). Match any "data-" prefix and rely on
+			// the conversations.json check below to filter false positives.
+			if strings.HasPrefix(name, "data-") {
 				// Look for conversations.json inside this directory
 				subPath := filepath.Join(dir, name, "conversations.json")
 				if info, err := os.Stat(subPath); err == nil && !info.IsDir() {
@@ -179,7 +181,7 @@ func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 		} else {
 			// Check if this is a zip file that might contain Claude exports
 			if strings.HasSuffix(strings.ToLower(name), ".zip") &&
-				(strings.Contains(name, "data-20") || strings.Contains(name, "claude") ||
+				(strings.HasPrefix(name, "data-") || strings.Contains(name, "claude") ||
 					strings.Contains(name, "export") || strings.Contains(name, "conversations")) {
 				zipPath := filepath.Join(dir, name)
 				if zipExports := s.scanZipFile(zipPath); len(zipExports) > 0 {

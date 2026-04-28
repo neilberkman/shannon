@@ -11,6 +11,7 @@ import (
 	"github.com/neilberkman/shannon/cmd/recent"
 	"github.com/neilberkman/shannon/cmd/root"
 	"github.com/neilberkman/shannon/cmd/search"
+	servemcp "github.com/neilberkman/shannon/cmd/serve-mcp"
 	"github.com/neilberkman/shannon/cmd/stats"
 	"github.com/neilberkman/shannon/cmd/terminal"
 	"github.com/neilberkman/shannon/cmd/tui"
@@ -40,6 +41,7 @@ func main() {
 	root.RootCmd.AddCommand(open.OpenCmd)
 	root.RootCmd.AddCommand(recent.RecentCmd)
 	root.RootCmd.AddCommand(search.SearchCmd)
+	root.RootCmd.AddCommand(servemcp.ServeMCPCmd)
 	root.RootCmd.AddCommand(view.ViewCmd)
 	root.RootCmd.AddCommand(edit.EditCmd)
 	root.RootCmd.AddCommand(export.ExportCmd)

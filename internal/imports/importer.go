@@ -34,7 +34,26 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	stats := &models.ImportStats{}
 	startTime := time.Now()
 
-	// Check if file has already been imported
+	// Stat the file once and reuse for both the unchanged-file fast path and
+	// the streaming-vs-batch threshold below.
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat file: %w", err)
+	}
+	inode, device := fileIdentity(fileInfo)
+
+	// Fast path: if any prior import recorded this exact (path, size, mtime,
+	// inode, device), the file is unchanged and we can skip without hashing
+	// 25+ MB of JSON.
+	if imported, err := i.isFileUnchangedSinceImport(filePath, fileInfo, inode, device); err != nil {
+		return nil, err
+	} else if imported {
+		return nil, fmt.Errorf("file already imported (unchanged)")
+	}
+
+	// Slow path: hash the file. Catches the case where the same content lives
+	// at a different path (e.g. user renamed/moved the export folder) or a
+	// cloud-drive sync rewrote mtime without touching content.
 	hash, err := i.fileHash(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash file: %w", err)
@@ -43,6 +62,9 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	if imported, err := i.isFileImported(hash); err != nil {
 		return nil, err
 	} else if imported {
+		// Backfill the identity fields on the existing row so the next run
+		// short-circuits via the fast path instead of re-hashing.
+		_ = i.backfillImportIdentity(filePath, hash, fileInfo, inode, device)
 		return nil, fmt.Errorf("file already imported (hash: %s)", hash)
 	}
 
@@ -73,7 +95,6 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	}()
 
 	// Use streaming parse for large files
-	fileInfo, _ := os.Stat(filePath)
 	if fileInfo.Size() > 100*1024*1024 { // 100MB
 		err = i.streamImport(tx, parser, stats)
 	} else {
@@ -81,18 +102,18 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	}
 
 	if err != nil {
-		_ = i.recordImport(filePath, hash, stats, "failed", err.Error())
+		_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "failed", err.Error())
 		return stats, err
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		_ = i.recordImport(filePath, hash, stats, "failed", err.Error())
+		_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "failed", err.Error())
 		return stats, fmt.Errorf("failed to commit: %w", err)
 	}
 
 	stats.Duration = time.Since(startTime)
-	_ = i.recordImport(filePath, hash, stats, "success", "")
+	_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "success", "")
 
 	return stats, nil
 }
@@ -403,14 +424,138 @@ func (i *Importer) fileHash(filePath string) (string, error) {
 
 func (i *Importer) isFileImported(hash string) (bool, error) {
 	var count int
-	err := i.db.QueryRow("SELECT COUNT(*) FROM import_history WHERE file_hash = ?", hash).Scan(&count)
+	err := i.db.QueryRow(
+		"SELECT COUNT(*) FROM import_history WHERE file_hash = ? AND status = 'success'",
+		hash,
+	).Scan(&count)
 	return count > 0, err
 }
 
-func (i *Importer) recordImport(filePath, hash string, stats *models.ImportStats, status, errorMsg string) error {
+// isFileUnchangedSinceImport returns true if a prior successful import for the
+// same path is recorded with matching size, mtime, inode, and device — meaning
+// the file on disk has not been touched since. Mtime is compared with a
+// 1-second tolerance to tolerate filesystems and cloud-drive sync clients that
+// round subsecond precision differently across runs.
+func (i *Importer) isFileUnchangedSinceImport(filePath string, info os.FileInfo, inode, device uint64) (bool, error) {
+	rows, err := i.db.Query(`
+		SELECT file_size, file_mtime, file_inode, file_device
+		FROM import_history
+		WHERE file_path = ? AND status = 'success'
+		  AND file_size IS NOT NULL AND file_mtime IS NOT NULL
+		ORDER BY imported_at DESC
+		LIMIT 5
+	`, filePath)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var (
+			size      sql.NullInt64
+			mtimeStr  sql.NullString
+			rowInode  sql.NullInt64
+			rowDevice sql.NullInt64
+		)
+		if err := rows.Scan(&size, &mtimeStr, &rowInode, &rowDevice); err != nil {
+			return false, err
+		}
+		if !size.Valid || !mtimeStr.Valid {
+			continue
+		}
+		if size.Int64 != info.Size() {
+			continue
+		}
+
+		recordedMtime, perr := parseStoredTime(mtimeStr.String)
+		if perr != nil {
+			continue
+		}
+		drift := info.ModTime().Sub(recordedMtime)
+		if drift < 0 {
+			drift = -drift
+		}
+		if drift >= time.Second {
+			continue
+		}
+
+		// inode/device are zero on Windows or on filesystems where Stat_t isn't
+		// available — treat as a wildcard rather than a mismatch.
+		if inode != 0 && rowInode.Valid && uint64(rowInode.Int64) != inode {
+			continue
+		}
+		if device != 0 && rowDevice.Valid && uint64(rowDevice.Int64) != device {
+			continue
+		}
+
+		return true, nil
+	}
+	return false, rows.Err()
+}
+
+// parseStoredTime accepts the various string forms SQLite may hand back for
+// a DATETIME column written from a Go time.Time.
+func parseStoredTime(s string) (time.Time, error) {
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unrecognized time format: %q", s)
+}
+
+func (i *Importer) recordImport(filePath, hash string, info os.FileInfo, inode, device uint64, stats *models.ImportStats, status, errorMsg string) error {
 	_, err := i.db.Exec(`
-		INSERT INTO import_history (file_path, file_hash, conversations_count, messages_count, status, error_message)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, filePath, hash, stats.ConversationsImported, stats.MessagesImported, status, errorMsg)
+		INSERT INTO import_history (
+			file_path, file_hash, conversations_count, messages_count,
+			status, error_message,
+			file_size, file_mtime, file_inode, file_device
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		filePath, hash, stats.ConversationsImported, stats.MessagesImported,
+		status, errorMsg,
+		info.Size(), info.ModTime().UTC().Format(time.RFC3339Nano),
+		nullableU64(inode), nullableU64(device),
+	)
+	return err
+}
+
+// nullableU64 returns nil for zero (the sentinel for "not available"), so the
+// stored column reflects that we don't know the inode/device rather than a
+// real value of 0.
+func nullableU64(v uint64) interface{} {
+	if v == 0 {
+		return nil
+	}
+	return int64(v)
+}
+
+// backfillImportIdentity updates the most recent successful import_history row
+// for the given (file_path, file_hash) with the current size/mtime/inode/device
+// so a future re-run can hit the fast path without re-hashing. Used when the
+// hash check confirms the file was previously imported but the row predates
+// migration001 (and thus has NULLs in those columns).
+func (i *Importer) backfillImportIdentity(filePath, hash string, info os.FileInfo, inode, device uint64) error {
+	_, err := i.db.Exec(`
+		UPDATE import_history
+		SET file_size = ?, file_mtime = ?, file_inode = ?, file_device = ?
+		WHERE id = (
+			SELECT id FROM import_history
+			WHERE file_path = ? AND file_hash = ? AND status = 'success'
+			ORDER BY imported_at DESC
+			LIMIT 1
+		)
+	`,
+		info.Size(), info.ModTime().UTC().Format(time.RFC3339Nano),
+		nullableU64(inode), nullableU64(device),
+		filePath, hash,
+	)
 	return err
 }

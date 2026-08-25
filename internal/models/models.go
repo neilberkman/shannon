@@ -83,6 +83,7 @@ type ClaudeChatMessage struct {
 	Text        string                 `json:"text"`
 	Content     []ClaudeMessageContent `json:"content"`
 	Attachments []ClaudeAttachment     `json:"attachments,omitempty"`
+	Files       []ClaudeFile           `json:"files,omitempty"`
 	CreatedAt   string                 `json:"created_at"`
 	ParentID    *string                `json:"parent_message_uuid,omitempty"`
 }
@@ -94,6 +95,15 @@ type ClaudeAttachment struct {
 	FileName         string `json:"file_name"`
 	FileType         string `json:"file_type,omitempty"`
 	ExtractedContent string `json:"extracted_content,omitempty"`
+}
+
+// ClaudeFile represents a file uploaded with a message. Unlike an attachment,
+// the export carries no extracted text for it, only the name it was uploaded
+// under. That name is frequently the only searchable trace of a document in a
+// message whose author typed nothing alongside it.
+type ClaudeFile struct {
+	FileUUID string `json:"file_uuid,omitempty"`
+	FileName string `json:"file_name,omitempty"`
 }
 
 // ClaudeMessageContent represents a single content block in an exported

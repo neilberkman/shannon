@@ -46,6 +46,13 @@ func SearchText(msg *models.ClaudeChatMessage) string {
 		b.add(att.ExtractedContent)
 	}
 
+	// Uploaded files carry no extracted text, so the name is all there is to
+	// index. A message whose author uploaded documents without typing
+	// anything would otherwise be absent from the index entirely.
+	for _, f := range msg.Files {
+		b.add(f.FileName)
+	}
+
 	return b.String()
 }
 

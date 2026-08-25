@@ -5,6 +5,31 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-25
+
+### Fixed
+
+- **Search now indexes the whole message, not just its first text block.** Claude's export splits a message across typed content blocks, and for tool-using conversations most of the content never appears in the top-level `text` field. The importer read those blocks only as a fallback when `text` was empty, stopped at the first `text` block, and ignored every other block type. Extended thinking, tool inputs, tool results, web-search documents, and attachment text were all dropped before reaching the index, so entire conversations were unfindable. All of it is now extracted and indexed.
+- **FTS sync triggers no longer corrupt the index.** The `AFTER UPDATE` and `AFTER DELETE` triggers wrote to the FTS5 external-content tables with plain `UPDATE` and `DELETE` statements. Retracting a row's tokens requires replaying its old values through the table's `'delete'` command; doing it any other way leaves the index inconsistent with its content table, which SQLite later reports as `database disk image is malformed`. Both triggers now use the documented form, and existing databases are repaired and reindexed on open.
+- **`--force` now forces.** `shannon import --force` accepted the flag and discarded it: the already-imported check ran first and returned unconditionally, so a forced re-import was a no-op.
+
+### Added
+
+- **Re-importing an export repairs the messages it already holds.** Previously imported messages were skipped by UUID, so no re-import could ever recover content an earlier version had discarded. Messages are now refreshed in place when the export yields more than what is stored, and a re-import never trades stored content for less of it. `shannon import <file> --force` reports the number of messages updated.
+- Separate `messages.search_text` column: `text` stays the prose shown by `view` and in snippets, while `search_text` carries everything worth finding. Viewing a conversation still shows what was said, not everything the model read.
+
+### Upgrading
+
+Existing databases migrate automatically on first run: the new column is backfilled from the current text and both FTS indexes are rebuilt, so search keeps working exactly as before with no action required.
+
+To actually recover the content earlier imports discarded, re-import your exports:
+
+```
+shannon import ~/Downloads/conversations.json --force
+```
+
+Messages are matched by UUID and updated in place, so this never duplicates anything and is safe to repeat.
+
 ## [0.3.0] - 2026-04-28
 
 ### Added

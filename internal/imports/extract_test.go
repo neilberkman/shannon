@@ -161,3 +161,36 @@ func TestDisplayTextFallsBackToTextBlocks(t *testing.T) {
 		t.Errorf("thinking must not reach display text; got %q", got)
 	}
 }
+
+func TestSearchTextIndexesUploadedFileNames(t *testing.T) {
+	// A message whose author uploaded documents without typing anything has
+	// no text of any kind; the file names are its only searchable trace.
+	msg := &models.ClaudeChatMessage{
+		Text: "",
+		Content: []models.ClaudeMessageContent{
+			{Type: "text", Text: ""},
+		},
+		Files: []models.ClaudeFile{
+			{FileUUID: "eb6fad8a", FileName: "Grant Agreement - Orion Nebula Group II - Xuku LLC.pdf"},
+			{FileUUID: "d1aa35b2", FileName: "LLC_Agreement_-_Orion_Nebula_Group_II-FINAL.pdf"},
+		},
+	}
+
+	got := SearchText(msg)
+	for _, want := range []string{"Grant Agreement", "Orion Nebula Group II", "Xuku LLC", "LLC_Agreement"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in search text; got %q", want, got)
+		}
+	}
+}
+
+func TestDisplayTextIgnoresUploadedFileNames(t *testing.T) {
+	msg := &models.ClaudeChatMessage{
+		Text:  "here you go",
+		Files: []models.ClaudeFile{{FileName: "secret-plan.pdf"}},
+	}
+
+	if got := DisplayText(msg); got != "here you go" {
+		t.Errorf("file names must not enter display text; got %q", got)
+	}
+}

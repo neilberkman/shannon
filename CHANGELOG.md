@@ -5,6 +5,18 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-25
+
+### Fixed
+
+- **Uploaded file names are now indexed.** Claude's export records files uploaded with a message in a `files` array carrying only a UUID and the file name, separate from `attachments` (which carry extracted text). The importer read `attachments` and ignored `files` entirely. A message whose author uploaded documents without typing anything alongside them therefore had nothing at all in the index and could not be found by any search. One 1,775-conversation export contained 2,515 such file entries. The export provides no document text for these, so this recovers names rather than contents, but the name is often the only trace of a document in the transcript.
+
+As with 0.4.0, re-import to pick this up:
+
+```
+shannon import <file> --force
+```
+
 ## [0.4.0] - 2026-08-25
 
 ### Fixed

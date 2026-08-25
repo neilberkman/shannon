@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/neilberkman/shannon/internal/db"
@@ -29,8 +30,22 @@ func NewImporter(database *db.DB, batchSize int, verbose bool) *Importer {
 	}
 }
 
-// Import imports a Claude export file
+// Import imports a Claude export file, skipping files that have already been
+// imported unchanged.
 func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
+	return i.importFile(filePath, false)
+}
+
+// ImportForce re-imports a file even when it has been imported before.
+// Conversations and messages are matched by UUID and refreshed in place, so a
+// forced re-import repairs previously stored content rather than duplicating
+// it. This is how an export is re-read after the importer learns to extract
+// more of each message.
+func (i *Importer) ImportForce(filePath string) (*models.ImportStats, error) {
+	return i.importFile(filePath, true)
+}
+
+func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats, error) {
 	stats := &models.ImportStats{}
 	startTime := time.Now()
 
@@ -45,10 +60,12 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 	// Fast path: if any prior import recorded this exact (path, size, mtime,
 	// inode, device), the file is unchanged and we can skip without hashing
 	// 25+ MB of JSON.
-	if imported, err := i.isFileUnchangedSinceImport(filePath, fileInfo, inode, device); err != nil {
-		return nil, err
-	} else if imported {
-		return nil, fmt.Errorf("file already imported (unchanged)")
+	if !force {
+		if imported, err := i.isFileUnchangedSinceImport(filePath, fileInfo, inode, device); err != nil {
+			return nil, err
+		} else if imported {
+			return nil, fmt.Errorf("file already imported (unchanged)")
+		}
 	}
 
 	// Slow path: hash the file. Catches the case where the same content lives
@@ -59,13 +76,15 @@ func (i *Importer) Import(filePath string) (*models.ImportStats, error) {
 		return nil, fmt.Errorf("failed to hash file: %w", err)
 	}
 
-	if imported, err := i.isFileImported(hash); err != nil {
-		return nil, err
-	} else if imported {
-		// Backfill the identity fields on the existing row so the next run
-		// short-circuits via the fast path instead of re-hashing.
-		_ = i.backfillImportIdentity(filePath, hash, fileInfo, inode, device)
-		return nil, fmt.Errorf("file already imported (hash: %s)", hash)
+	if !force {
+		if imported, err := i.isFileImported(hash); err != nil {
+			return nil, err
+		} else if imported {
+			// Backfill the identity fields on the existing row so the next run
+			// short-circuits via the fast path instead of re-hashing.
+			_ = i.backfillImportIdentity(filePath, hash, fileInfo, inode, device)
+			return nil, fmt.Errorf("file already imported (hash: %s)", hash)
+		}
 	}
 
 	// Parse the export file
@@ -166,7 +185,7 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 	}
 
 	// Check if conversation already exists and get existing message UUIDs
-	existingMessages, err := i.getExistingMessageUUIDs(tx, conv.UUID)
+	existingMessages, err := i.getExistingMessages(tx, conv.UUID)
 	if err != nil {
 		return fmt.Errorf("failed to get existing messages: %w", err)
 	}
@@ -223,10 +242,18 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 	return nil
 }
 
-// getExistingMessageUUIDs returns a map of existing message UUIDs for a conversation
-func (i *Importer) getExistingMessageUUIDs(tx *sql.Tx, convUUID string) (map[string]struct{}, error) {
+// existingMessage holds the stored text of an already-imported message, so a
+// re-import can tell whether the export now yields richer content.
+type existingMessage struct {
+	text       string
+	searchText string
+}
+
+// getExistingMessages returns the already-imported messages of a conversation,
+// keyed by UUID, along with the text currently stored for each.
+func (i *Importer) getExistingMessages(tx *sql.Tx, convUUID string) (map[string]existingMessage, error) {
 	query := `
-		SELECT m.uuid 
+		SELECT m.uuid, m.text, m.search_text
 		FROM messages m
 		JOIN conversations c ON m.conversation_id = c.id
 		WHERE c.uuid = ?
@@ -242,13 +269,14 @@ func (i *Importer) getExistingMessageUUIDs(tx *sql.Tx, convUUID string) (map[str
 		}
 	}()
 
-	existing := make(map[string]struct{})
+	existing := make(map[string]existingMessage)
 	for rows.Next() {
 		var uuid string
-		if err := rows.Scan(&uuid); err != nil {
+		var prev existingMessage
+		if err := rows.Scan(&uuid, &prev.text, &prev.searchText); err != nil {
 			return nil, err
 		}
-		existing[uuid] = struct{}{}
+		existing[uuid] = prev
 	}
 
 	return existing, rows.Err()
@@ -273,7 +301,7 @@ func (i *Importer) getOrCreateMainBranch(tx *sql.Tx, convID int64) (int64, error
 }
 
 // importNewMessages imports only new messages, detecting branches based on parent relationships
-func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, messages []models.ClaudeChatMessage, existingMessages map[string]struct{}, stats *models.ImportStats) (int, int, error) {
+func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, messages []models.ClaudeChatMessage, existingMessages map[string]existingMessage, stats *models.ImportStats) (int, int, error) {
 	messageIDMap := make(map[string]int64)
 	newMessagesCount := 0
 	branchesDetected := 0
@@ -284,8 +312,13 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 	}
 
 	for idx, msg := range messages {
-		// Skip if message already exists
-		if _, exists := existingMessages[msg.UUID]; exists {
+		// An already-imported message is refreshed rather than skipped: an
+		// earlier version of the importer stored only part of each message,
+		// so re-importing the same export is how that content is recovered.
+		if prev, exists := existingMessages[msg.UUID]; exists {
+			if err := i.refreshMessage(tx, &messages[idx], prev, stats); err != nil {
+				return newMessagesCount, branchesDetected, err
+			}
 			continue
 		}
 
@@ -295,16 +328,9 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 			return newMessagesCount, branchesDetected, fmt.Errorf("invalid message created_at: %w", err)
 		}
 
-		// Get message text
-		text := msg.Text
-		if text == "" && len(msg.Content) > 0 {
-			for _, content := range msg.Content {
-				if content.Type == "text" && content.Text != "" {
-					text = content.Text
-					break
-				}
-			}
-		}
+		// Separate the prose a reader sees from everything worth indexing.
+		text := DisplayText(&messages[idx])
+		searchText := SearchText(&messages[idx])
 
 		// Determine parent ID and branch logic
 		var parentID *int64
@@ -331,9 +357,9 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 
 		// Insert message
 		result, err := tx.Exec(`
-			INSERT INTO messages (uuid, conversation_id, sender, text, created_at, parent_id, branch_id, sequence)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, msg.UUID, convID, msg.Sender, text, msgCreatedAt, parentID, branchID, idx)
+			INSERT INTO messages (uuid, conversation_id, sender, text, search_text, created_at, parent_id, branch_id, sequence)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, msg.UUID, convID, msg.Sender, text, searchText, msgCreatedAt, parentID, branchID, idx)
 
 		if err != nil {
 			return newMessagesCount, branchesDetected, fmt.Errorf("failed to insert message: %w", err)
@@ -558,4 +584,40 @@ func (i *Importer) backfillImportIdentity(filePath, hash string, info os.FileInf
 		filePath, hash,
 	)
 	return err
+}
+
+// refreshMessage updates an already-imported message when the export yields
+// text the stored row is missing. Earlier versions of the importer kept only
+// a message's first text block, discarding extended thinking and tool
+// results, so re-importing an export repairs those rows in place. Rows that
+// already match are left untouched, keeping repeat imports cheap.
+func (i *Importer) refreshMessage(tx *sql.Tx, msg *models.ClaudeChatMessage, prev existingMessage, stats *models.ImportStats) error {
+	text := DisplayText(msg)
+	searchText := SearchText(msg)
+
+	if text == prev.text && searchText == prev.searchText {
+		return nil
+	}
+
+	// Never trade stored content for less of it: an export that omits a
+	// message's body should not blank out what a previous import captured.
+	if strings.TrimSpace(text) == "" {
+		text = prev.text
+	}
+	if len(searchText) < len(prev.searchText) {
+		searchText = prev.searchText
+	}
+	if text == prev.text && searchText == prev.searchText {
+		return nil
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE messages SET text = ?, search_text = ? WHERE uuid = ?`,
+		text, searchText, msg.UUID,
+	); err != nil {
+		return fmt.Errorf("failed to refresh message %s: %w", msg.UUID, err)
+	}
+
+	stats.MessagesUpdated++
+	return nil
 }

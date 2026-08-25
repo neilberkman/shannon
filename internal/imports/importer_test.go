@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/models"
 )
 
 func setupImporter(t *testing.T) (*Importer, string) {
@@ -155,5 +156,89 @@ func TestImport_DetectsModifiedContent(t *testing.T) {
 	}
 	if stats.ConversationsImported == 0 {
 		t.Fatal("expected new conversation to be imported")
+	}
+}
+
+// TestReimportRepairsLossyMessages covers the self-heal path: a message
+// stored by an older importer kept only its first text block, and
+// re-importing the same export must recover the rest without duplicating the
+// message or losing the display prose.
+func TestReimportRepairsLossyMessages(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "repair.db")
+	database, err := db.New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create db: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	seed := []string{
+		`INSERT INTO conversations (uuid, name, created_at, updated_at)
+			VALUES ('c1', 'legacy', '2026-01-01', '2026-01-01')`,
+		`INSERT INTO branches (id, conversation_id, name) VALUES (1, 1, 'main')`,
+		// As an older importer would have stored it: first text block only.
+		`INSERT INTO messages (uuid, conversation_id, sender, text, search_text, created_at, branch_id, sequence)
+			VALUES ('m1', 1, 'assistant', 'visible answer', 'visible answer', '2026-01-01', 1, 0)`,
+	}
+	for _, stmt := range seed {
+		if _, err := database.Exec(stmt); err != nil {
+			t.Fatalf("seed failed (%s): %v", stmt, err)
+		}
+	}
+
+	msg := models.ClaudeChatMessage{
+		UUID:      "m1",
+		Sender:    "assistant",
+		Text:      "visible answer",
+		CreatedAt: "2026-01-01T00:00:00Z",
+		Content: []models.ClaudeMessageContent{
+			{Type: "text", Text: "visible answer"},
+			{Type: "thinking", Thinking: "the Orion Nebula deadline is September 11"},
+		},
+	}
+
+	importer := NewImporter(database, 100, false)
+	tx, err := database.Begin()
+	if err != nil {
+		t.Fatalf("begin failed: %v", err)
+	}
+	existing, err := importer.getExistingMessages(tx, "c1")
+	if err != nil {
+		t.Fatalf("failed to read existing messages: %v", err)
+	}
+	stats := &models.ImportStats{}
+	newCount, _, err := importer.importNewMessages(tx, 1, 1, []models.ClaudeChatMessage{msg}, existing, stats)
+	if err != nil {
+		t.Fatalf("import failed: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit failed: %v", err)
+	}
+
+	if newCount != 0 {
+		t.Errorf("existing message must not be re-inserted; got %d new", newCount)
+	}
+	if stats.MessagesUpdated != 1 {
+		t.Errorf("expected 1 repaired message, got %d", stats.MessagesUpdated)
+	}
+
+	var text, searchText string
+	if err := database.QueryRow(
+		`SELECT text, search_text FROM messages WHERE uuid = 'm1'`).Scan(&text, &searchText); err != nil {
+		t.Fatalf("failed to read repaired row: %v", err)
+	}
+	if text != "visible answer" {
+		t.Errorf("display text should be unchanged; got %q", text)
+	}
+	if !strings.Contains(searchText, "Orion Nebula") {
+		t.Errorf("thinking content should be recovered; got %q", searchText)
+	}
+
+	var hits int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM messages_fts WHERE messages_fts MATCH 'Orion'`).Scan(&hits); err != nil {
+		t.Fatalf("fts query failed: %v", err)
+	}
+	if hits != 1 {
+		t.Errorf("repaired content should be searchable; got %d hits", hits)
 	}
 }

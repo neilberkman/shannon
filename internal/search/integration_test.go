@@ -104,9 +104,9 @@ func insertTestData(t *testing.T, database *db.DB) {
 
 	for i, msg := range messages {
 		_, err := tx.Exec(`
-			INSERT INTO messages (uuid, conversation_id, sender, text, created_at, parent_id, branch_id, sequence)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, msg.uuid, msg.convID, msg.sender, msg.text, msg.created.Format("2006-01-02 15:04:05"), nil, msg.branchID, i)
+			INSERT INTO messages (uuid, conversation_id, sender, text, search_text, created_at, parent_id, branch_id, sequence)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, msg.uuid, msg.convID, msg.sender, msg.text, msg.text, msg.created.Format("2006-01-02 15:04:05"), nil, msg.branchID, i)
 		if err != nil {
 			t.Fatal(err)
 		}

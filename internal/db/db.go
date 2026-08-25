@@ -85,6 +85,7 @@ func (db *DB) initSchema() error {
 		conversation_id INTEGER NOT NULL,
 		sender TEXT NOT NULL CHECK(sender IN ('human', 'assistant')),
 		text TEXT NOT NULL,
+		search_text TEXT NOT NULL DEFAULT '',
 		created_at DATETIME NOT NULL,
 		parent_id INTEGER,
 		branch_id INTEGER NOT NULL,
@@ -102,7 +103,7 @@ func (db *DB) initSchema() error {
 	-- Enhanced full-text search with multiple tokenizers for different content types
 	-- Main FTS table with porter stemming for natural language
 	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-		text,
+		search_text,
 		content=messages,
 		content_rowid=id,
 		tokenize='porter unicode61'
@@ -110,7 +111,7 @@ func (db *DB) initSchema() error {
 	
 	-- Code-specific FTS table that preserves symbols and camelCase
 	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts_code USING fts5(
-		text,
+		search_text,
 		content=messages,
 		content_rowid=id,
 		tokenize='unicode61'
@@ -118,18 +119,20 @@ func (db *DB) initSchema() error {
 	
 	-- Triggers to keep FTS indices in sync
 	CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-		INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
-		INSERT INTO messages_fts_code(rowid, text) VALUES (new.id, new.text);
+		INSERT INTO messages_fts(rowid, search_text) VALUES (new.id, new.search_text);
+		INSERT INTO messages_fts_code(rowid, search_text) VALUES (new.id, new.search_text);
 	END;
 	
 	CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-		DELETE FROM messages_fts WHERE rowid = old.id;
-		DELETE FROM messages_fts_code WHERE rowid = old.id;
+		INSERT INTO messages_fts(messages_fts, rowid, search_text) VALUES('delete', old.id, old.search_text);
+		INSERT INTO messages_fts_code(messages_fts_code, rowid, search_text) VALUES('delete', old.id, old.search_text);
 	END;
 	
 	CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-		UPDATE messages_fts SET text = new.text WHERE rowid = new.id;
-		UPDATE messages_fts_code SET text = new.text WHERE rowid = new.id;
+		INSERT INTO messages_fts(messages_fts, rowid, search_text) VALUES('delete', old.id, old.search_text);
+		INSERT INTO messages_fts(rowid, search_text) VALUES (new.id, new.search_text);
+		INSERT INTO messages_fts_code(messages_fts_code, rowid, search_text) VALUES('delete', old.id, old.search_text);
+		INSERT INTO messages_fts_code(rowid, search_text) VALUES (new.id, new.search_text);
 	END;
 	
 	-- Import tracking table

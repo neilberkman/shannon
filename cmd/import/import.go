@@ -7,6 +7,7 @@ import (
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
 	"github.com/neilberkman/shannon/internal/imports"
+	"github.com/neilberkman/shannon/internal/models"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -81,7 +82,12 @@ func ImportFileQuiet(filePath string, forceImport bool, quiet bool) error {
 	if !quiet {
 		fmt.Printf("Importing %s...\n", filePath)
 	}
-	stats, err := importer.Import(filePath)
+	var stats *models.ImportStats
+	if forceImport {
+		stats, err = importer.ImportForce(filePath)
+	} else {
+		stats, err = importer.Import(filePath)
+	}
 	if err != nil {
 		return fmt.Errorf("import failed: %w", err)
 	}
@@ -91,6 +97,9 @@ func ImportFileQuiet(filePath string, forceImport bool, quiet bool) error {
 		fmt.Printf("\nImport completed in %s:\n", stats.Duration)
 		fmt.Printf("  Conversations imported: %d\n", stats.ConversationsImported)
 		fmt.Printf("  Messages imported: %d\n", stats.MessagesImported)
+		if stats.MessagesUpdated > 0 {
+			fmt.Printf("  Messages updated: %d\n", stats.MessagesUpdated)
+		}
 		fmt.Printf("  Branches detected: %d\n", stats.BranchesDetected)
 
 		if len(stats.Errors) > 0 {

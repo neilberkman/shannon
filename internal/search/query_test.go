@@ -65,7 +65,7 @@ func TestProcessFTSQuery(t *testing.T) {
 		{
 			name:     "mixed case operators",
 			input:    "python And django Or ruby",
-			expected: "python And django Or ruby", // only lowercase full words are converted
+			expected: "python AND django OR ruby",
 		},
 		{
 			name:     "multiple words implicit AND",
@@ -93,14 +93,29 @@ func TestProcessFTSQuery(t *testing.T) {
 			expected: `"test""quote"`,
 		},
 		{
-			name:     "quotes within text preserved",
+			name:     "quotes within text escaped safely",
 			input:    `test"quote"more`,
-			expected: `test"quote"more`, // balanced quotes are preserved
+			expected: `"test""quote""more"`,
 		},
 		{
 			name:     "balanced quotes preserved",
 			input:    `"test quote"`,
 			expected: `"test quote"`,
+		},
+		{
+			name:     "hyphenated token quoted safely",
+			input:    "scikit-learn",
+			expected: `"scikit-learn"`,
+		},
+		{
+			name:     "punctuation token with wildcard",
+			input:    "foo-bar*",
+			expected: `"foo-bar"*`,
+		},
+		{
+			name:     "url and boolean operator",
+			input:    "https://example.com OR user@example.com",
+			expected: `"https://example.com" OR "user@example.com"`,
 		},
 	}
 

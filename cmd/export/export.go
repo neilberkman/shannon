@@ -202,11 +202,11 @@ func formatMarkdown(conv *models.Conversation, messages []*models.Message) strin
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("# %s\n\n", conv.Name))
-	sb.WriteString(fmt.Sprintf("**ID:** %d  \n", conv.ID))
-	sb.WriteString(fmt.Sprintf("**Created:** %s  \n", conv.CreatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("**Updated:** %s  \n", conv.UpdatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("**Messages:** %d  \n\n", len(messages)))
+	fmt.Fprintf(&sb, "# %s\n\n", conv.Name)
+	fmt.Fprintf(&sb, "**ID:** %d  \n", conv.ID)
+	fmt.Fprintf(&sb, "**Created:** %s  \n", conv.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "**Updated:** %s  \n", conv.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "**Messages:** %d  \n\n", len(messages))
 	sb.WriteString("---\n\n")
 
 	// Messages
@@ -214,7 +214,7 @@ func formatMarkdown(conv *models.Conversation, messages []*models.Message) strin
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
 
 		displaySender := rendering.FormatSender(msg.Sender)
-		sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", displaySender, timestamp))
+		fmt.Fprintf(&sb, "## %s (%s)\n\n", displaySender, timestamp)
 
 		// Handle code blocks in message text
 		text := strings.ReplaceAll(msg.Text, "```", "````")
@@ -234,11 +234,11 @@ func formatText(conv *models.Conversation, messages []*models.Message) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("CONVERSATION: %s\n", conv.Name))
-	sb.WriteString(fmt.Sprintf("ID: %d\n", conv.ID))
-	sb.WriteString(fmt.Sprintf("Created: %s\n", conv.CreatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("Updated: %s\n", conv.UpdatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("Messages: %d\n", len(messages)))
+	fmt.Fprintf(&sb, "CONVERSATION: %s\n", conv.Name)
+	fmt.Fprintf(&sb, "ID: %d\n", conv.ID)
+	fmt.Fprintf(&sb, "Created: %s\n", conv.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "Updated: %s\n", conv.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "Messages: %d\n", len(messages))
 	sb.WriteString(strings.Repeat("=", 80) + "\n\n")
 
 	// Messages
@@ -246,7 +246,7 @@ func formatText(conv *models.Conversation, messages []*models.Message) string {
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
 		sender := strings.ToUpper(msg.Sender)
 
-		sb.WriteString(fmt.Sprintf("[%s] %s\n", timestamp, sender))
+		fmt.Fprintf(&sb, "[%s] %s\n", timestamp, sender)
 		sb.WriteString(strings.Repeat("-", 40) + "\n")
 		sb.WriteString(msg.Text)
 		sb.WriteString("\n\n")

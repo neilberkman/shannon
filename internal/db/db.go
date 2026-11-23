@@ -13,8 +13,8 @@ type DB struct {
 }
 
 func New(dbPath string) (*DB, error) {
-	// Open database with pragmas for performance and FTS5
-	conn, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)")
+	// Open database with pragmas for performance, concurrency, and FTS5
+	conn, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

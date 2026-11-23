@@ -20,11 +20,11 @@ var (
 // importCmd represents the import command
 var ImportCmd = &cobra.Command{
 	Use:   "import [file]",
-	Short: "Import a Claude export file",
-	Long: `Import conversations from a Claude export JSON file into the local database.
+	Short: "Import a Claude export file (.json or .zip)",
+	Long: `Import conversations from a Claude export JSON file or ZIP archive into the local database.
 
 The import process will:
-- Parse the JSON export file
+- Stream conversations.json directly (including straight from .zip exports)
 - Detect conversation branches
 - Create full-text search indexes
 - Skip files that have already been imported (unless --force is used)`,
@@ -54,8 +54,8 @@ func ImportFile(filePath string, forceImport bool) error {
 
 // ImportFileQuiet imports a single Claude export file with optional quiet mode
 func ImportFileQuiet(filePath string, forceImport bool, quiet bool) error {
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	// Check if underlying file exists (supports both plain JSON and .zip / .zip!entry paths)
+	if _, err := os.Stat(imports.DiskPath(filePath)); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filePath)
 	}
 

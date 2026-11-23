@@ -16,11 +16,11 @@ func ConversationToMarkdown(conv *models.Conversation, messages []*models.Messag
 	var sb strings.Builder
 
 	// Write conversation header
-	sb.WriteString(fmt.Sprintf("# %s\n\n", conv.Name))
-	sb.WriteString(fmt.Sprintf("**Conversation ID:** %d\n\n", conv.ID))
-	sb.WriteString(fmt.Sprintf("**Created:** %s\n\n", conv.CreatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("**Updated:** %s\n\n", conv.UpdatedAt.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("**Messages:** %d\n\n", len(messages)))
+	fmt.Fprintf(&sb, "# %s\n\n", conv.Name)
+	fmt.Fprintf(&sb, "**Conversation ID:** %d\n\n", conv.ID)
+	fmt.Fprintf(&sb, "**Created:** %s\n\n", conv.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "**Updated:** %s\n\n", conv.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "**Messages:** %d\n\n", len(messages))
 	sb.WriteString("---\n\n")
 
 	// Extract artifacts from messages
@@ -43,7 +43,7 @@ func ConversationToMarkdown(conv *models.Conversation, messages []*models.Messag
 			sender = strings.ToUpper(sender[:1]) + sender[1:]
 		}
 		timestamp := msg.CreatedAt.Format("2006-01-02 15:04:05")
-		sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", sender, timestamp))
+		fmt.Fprintf(&sb, "## %s (%s)\n\n", sender, timestamp)
 
 		// Message content
 		content := msg.Text
@@ -121,10 +121,10 @@ func formatArtifactMarkdown(artifact *artifacts.Artifact) string {
 	var sb strings.Builder
 
 	// Artifact header
-	sb.WriteString(fmt.Sprintf("### Artifact: %s\n\n", artifact.Title))
-	sb.WriteString(fmt.Sprintf("**Type:** %s", artifact.Type))
+	fmt.Fprintf(&sb, "### Artifact: %s\n\n", artifact.Title)
+	fmt.Fprintf(&sb, "**Type:** %s", artifact.Type)
 	if artifact.Language != "" {
-		sb.WriteString(fmt.Sprintf(" (%s)", artifact.Language))
+		fmt.Fprintf(&sb, " (%s)", artifact.Language)
 	}
 	sb.WriteString("\n\n")
 
@@ -150,7 +150,7 @@ func formatArtifactMarkdown(artifact *artifacts.Artifact) string {
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("```%s\n", language))
+	fmt.Fprintf(&sb, "```%s\n", language)
 	sb.WriteString(artifact.Content)
 	if !strings.HasSuffix(artifact.Content, "\n") {
 		sb.WriteString("\n")

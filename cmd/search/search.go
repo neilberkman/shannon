@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
@@ -50,15 +49,17 @@ Query Syntax:
   Exact phrase:       shannon search '"exact phrase match"'
   Wildcard (prefix):  shannon search "data*"
 
-Filters:
+Filters (flags or inline in query):
   By sender:          shannon search "api" --sender human
-  By date range:      shannon search "bug" --after 2024-01-01 --before 2024-12-31
-  By date (alt):      shannon search "bug" --start-date 2024-01-01 --end-date 2024-12-31
+                      shannon search "api sender:human"
+  By date range:      shannon search "bug" --after yesterday --before 2026-12-31
+                      shannon search "bug after:7d"
+                      shannon search --after 3-days-ago
   Within conversation: shannon search "function" -c 1234
 
 Note: Boolean operators (AND, OR, NOT) are case-insensitive.`,
 
-	Args: cobra.MinimumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	RunE: runSearch,
 }
 
@@ -90,11 +91,51 @@ func init() {
 }
 
 func runSearch(cmd *cobra.Command, args []string) error {
-	query := strings.Join(args, " ")
+	rawQuery := strings.Join(args, " ")
 
-	// Validate query
-	if strings.TrimSpace(query) == "" {
-		return fmt.Errorf("search query cannot be empty")
+	// Parse inline filters (after:, before:, sender:, sort:) from the query.
+	opts := search.ParseQuery(rawQuery)
+	opts.Limit = limit
+	opts.Offset = offset
+	if opts.SortBy == "" {
+		opts.SortBy = sortBy
+	}
+	opts.SortOrder = sortOrder
+
+	// Explicit CLI flags override inline filters when provided.
+	if cmd.Flags().Changed("sort-by") {
+		opts.SortBy = sortBy
+	}
+	if conversationID != "" {
+		var id int64
+		if _, err := fmt.Sscanf(conversationID, "%d", &id); err != nil {
+			return fmt.Errorf("invalid conversation ID: %w", err)
+		}
+		opts.ConversationID = &id
+	}
+
+	if sender != "" {
+		opts.Sender = sender
+	}
+
+	if startDate != "" {
+		t, err := search.ParseDate(startDate, false)
+		if err != nil {
+			return fmt.Errorf("invalid start date: %w", err)
+		}
+		opts.StartDate = &t
+	}
+
+	if endDate != "" {
+		t, err := search.ParseDate(endDate, true)
+		if err != nil {
+			return fmt.Errorf("invalid end date: %w", err)
+		}
+		opts.EndDate = &t
+	}
+
+	if strings.TrimSpace(opts.Query) == "" && !opts.HasFilters() {
+		return fmt.Errorf("search query or filter (--after, --before, --sender, -c) is required")
 	}
 
 	// Get configuration
@@ -113,44 +154,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
 	// Create search engine
 	engine := search.NewEngine(database)
-
-	// Build search options
-	opts := search.SearchOptions{
-		Query:     query,
-		Limit:     limit,
-		Offset:    offset,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
-	}
-
-	// Parse optional filters
-	if conversationID != "" {
-		var id int64
-		if _, err := fmt.Sscanf(conversationID, "%d", &id); err != nil {
-			return fmt.Errorf("invalid conversation ID: %w", err)
-		}
-		opts.ConversationID = &id
-	}
-
-	if sender != "" {
-		opts.Sender = sender
-	}
-
-	if startDate != "" {
-		t, err := time.Parse("2006-01-02", startDate)
-		if err != nil {
-			return fmt.Errorf("invalid start date: %w", err)
-		}
-		opts.StartDate = &t
-	}
-
-	if endDate != "" {
-		t, err := time.Parse("2006-01-02", endDate)
-		if err != nil {
-			return fmt.Errorf("invalid end date: %w", err)
-		}
-		opts.EndDate = &t
-	}
 
 	// Perform search
 	results, err := engine.Search(opts)

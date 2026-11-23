@@ -1,6 +1,8 @@
 package imports
 
 import (
+	"archive/zip"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"github.com/neilberkman/shannon/internal/db"
+	"github.com/neilberkman/shannon/internal/discovery"
 	"github.com/neilberkman/shannon/internal/models"
 )
 
@@ -201,8 +204,12 @@ func TestReimportRepairsLossyMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin failed: %v", err)
 	}
-	existing, err := importer.getExistingMessages(tx, "c1")
-	if err != nil {
+	existing := &existingConvState{
+		byUUID:           make(map[string]existingMessage),
+		idByUUID:         make(map[string]int64),
+		mainParentHasKid: make(map[int64]bool),
+	}
+	if err := importer.loadExistingConvState(tx, 1, 1, existing); err != nil {
 		t.Fatalf("failed to read existing messages: %v", err)
 	}
 	stats := &models.ImportStats{}
@@ -240,5 +247,103 @@ func TestReimportRepairsLossyMessages(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Errorf("repaired content should be searchable; got %d hits", hits)
+	}
+}
+
+func writeSyntheticZipExport(t *testing.T, zipPath, entryName, convUUID string) {
+	t.Helper()
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	zw := zip.NewWriter(f)
+	w, err := zw.Create(entryName)
+	if err != nil {
+		t.Fatalf("zip create entry: %v", err)
+	}
+	body := `[{
+		"uuid": "` + convUUID + `",
+		"name": "Zipped Synthetic Chat",
+		"created_at": "2026-03-01T00:00:00Z",
+		"updated_at": "2026-03-01T00:05:00Z",
+		"chat_messages": [
+			{
+				"uuid": "` + convUUID + `-m1",
+				"sender": "human",
+				"text": "Explain Go zip streaming",
+				"created_at": "2026-03-01T00:00:00Z"
+			},
+			{
+				"uuid": "` + convUUID + `-m2",
+				"sender": "assistant",
+				"text": "Use archive/zip to stream entries directly without extracting.",
+				"created_at": "2026-03-01T00:01:00Z"
+			}
+		]
+	}]`
+	if _, err := w.Write([]byte(body)); err != nil {
+		t.Fatalf("zip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("file close: %v", err)
+	}
+}
+
+func TestImport_ZipDirectAndBangEntryAndFastSkip(t *testing.T) {
+	imp, dir := setupImporter(t)
+	zipPath := filepath.Join(dir, "data-2026-03-01-export.zip")
+	writeSyntheticZipExport(t, zipPath, "data-2026-03-01/conversations.json", "zip-conv-1")
+
+	stats, err := imp.Import(zipPath)
+	if err != nil {
+		t.Fatalf("zip import failed: %v", err)
+	}
+	if stats.ConversationsImported != 1 || stats.MessagesImported != 2 {
+		t.Fatalf("unexpected stats: %+v", stats)
+	}
+
+	// Re-importing via the discovery zip!entry syntax should hit the fast path.
+	_, err = imp.Import(zipPath + "!data-2026-03-01/conversations.json")
+	if err == nil || !strings.Contains(err.Error(), "already imported") {
+		t.Fatalf("expected already-imported skip for zip!entry, got: %v", err)
+	}
+}
+
+func TestSyncFromScanner_ImportsNewZipAndSkipsUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "sync.db")
+	database, err := db.New(dbPath)
+	if err != nil {
+		t.Fatalf("db.New: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	exportsDir := filepath.Join(dir, "downloads")
+	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(exportsDir, "data-2026-03-02-claude.zip")
+	writeSyntheticZipExport(t, zipPath, "conversations.json", "sync-conv-1")
+
+	scanner := &discovery.Scanner{}
+	scanner.AddSearchPath(exportsDir)
+
+	s1, err := SyncFromScanner(context.Background(), database, scanner)
+	if err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if s1.FilesImported != 1 || s1.ConversationsImported != 1 {
+		t.Fatalf("unexpected first sync stats: %+v", s1)
+	}
+
+	s2, err := SyncFromScanner(context.Background(), database, scanner)
+	if err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+	if s2.FilesImported != 0 || s2.FilesSkipped != 1 {
+		t.Fatalf("expected unchanged zip to be skipped on second sync, got: %+v", s2)
 	}
 }

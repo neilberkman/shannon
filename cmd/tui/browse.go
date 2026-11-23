@@ -136,23 +136,23 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.searching {
 				switch msg.String() {
 				case keyEnter:
-					// Perform search
+					// Perform search (supports inline after:, before:, sender:, sort: filters)
 					query := m.textInput.Value()
 					if query != "" {
-						opts := search.SearchOptions{
-							Query:     query,
-							Limit:     1000,
-							SortBy:    "relevance",
-							SortOrder: "desc",
+						opts := search.ParseQuery(query)
+						opts.Limit = 200
+						if opts.SortBy == "" {
+							opts.SortBy = "relevance"
 						}
-						results, err := m.engine.Search(opts)
+						opts.SortOrder = "desc"
+						results, err := m.engine.SearchConversationsGrouped(opts)
 						if err != nil {
 							// Log search error for debugging
 							fmt.Printf("Search error for query '%s': %v\n", query, err)
 							// Stay in search mode but clear input
 							m.textInput.SetValue("")
 						} else {
-							// Switch to search results view
+							// Switch to ranked search results view
 							return newSearchModel(m.engine, results, query), nil
 						}
 					}

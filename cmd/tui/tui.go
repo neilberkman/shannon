@@ -41,15 +41,15 @@ func newMainModel(engine *search.Engine, initialQuery string, watchFiles bool) m
 	var viewType ViewType
 
 	if initialQuery != "" {
-		// Start with search view
-		opts := search.SearchOptions{
-			Query:     initialQuery,
-			Limit:     1000,
-			SortBy:    "relevance",
-			SortOrder: "desc",
+		// Start with ranked search view (supports inline filters)
+		opts := search.ParseQuery(initialQuery)
+		opts.Limit = 200
+		if opts.SortBy == "" {
+			opts.SortBy = "relevance"
 		}
+		opts.SortOrder = "desc"
 
-		results, err := engine.Search(opts)
+		results, err := engine.SearchConversationsGrouped(opts)
 		if err == nil {
 			currentView = newSearchModel(engine, results, initialQuery)
 			viewType = ViewSearch

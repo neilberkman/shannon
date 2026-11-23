@@ -128,13 +128,7 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		successCount := 0
 		skippedCount := 0
 		failedCount := 0
-		for path, export := range uniqueExports {
-			// Skip zip files for now (would need to extract first)
-			if strings.Contains(export.Path, "!") {
-				fmt.Printf("  ⚠️  Skipping zip file: %s (extraction not yet supported)\n", filepath.Base(path))
-				continue
-			}
-
+		for path := range uniqueExports {
 			filename := filepath.Base(path)
 			fmt.Printf("  • %s... ", filename)
 

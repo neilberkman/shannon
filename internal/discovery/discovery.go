@@ -129,6 +129,91 @@ func (s *Scanner) ScanForExports() ([]*ExportFile, error) {
 	return exports, nil
 }
 
+// ScanCandidatePaths quickly discovers candidate Claude export paths
+// (conversations.json files and .zip archives containing conversations.json)
+// without decoding JSON bodies. Callers like incremental auto-sync use this so
+// unchanged files can be skipped via stat metadata in milliseconds.
+func (s *Scanner) ScanCandidatePaths() []string {
+	type candidate struct {
+		path    string
+		modTime time.Time
+	}
+	seen := make(map[string]bool)
+	var out []candidate
+
+	add := func(p string, mod time.Time) {
+		if seen[p] {
+			return
+		}
+		seen[p] = true
+		out = append(out, candidate{path: p, modTime: mod})
+	}
+
+	for _, dir := range s.searchPaths {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
+
+		convPath := filepath.Join(dir, "conversations.json")
+		if info, err := os.Stat(convPath); err == nil && !info.IsDir() && s.isLikelyClaudeExport(convPath, info) {
+			add(convPath, info.ModTime())
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() {
+				if strings.HasPrefix(name, "data-") {
+					subPath := filepath.Join(dir, name, "conversations.json")
+					if info, err := os.Stat(subPath); err == nil && !info.IsDir() {
+						add(subPath, info.ModTime())
+					}
+				}
+				continue
+			}
+
+			lower := strings.ToLower(name)
+			if strings.HasSuffix(lower, ".zip") &&
+				(strings.HasPrefix(lower, "data-") || strings.Contains(lower, "claude") ||
+					strings.Contains(lower, "export") || strings.Contains(lower, "conversations")) {
+				zipPath := filepath.Join(dir, name)
+				if info, err := os.Stat(zipPath); err == nil && zipContainsConversations(zipPath) {
+					add(zipPath, info.ModTime())
+				}
+			}
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].modTime.After(out[j].modTime)
+	})
+
+	paths := make([]string, len(out))
+	for i, c := range out {
+		paths[i] = c.path
+	}
+	return paths
+}
+
+// zipContainsConversations checks a zip's central directory (without reading
+// or decompressing any entry payload) to see if it holds a conversations.json.
+func zipContainsConversations(zipPath string) bool {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = r.Close() }()
+	for _, f := range r.File {
+		if !f.FileInfo().IsDir() && filepath.Base(f.Name) == "conversations.json" {
+			return true
+		}
+	}
+	return false
+}
+
 // scanDirectory scans a single directory for Claude export files
 func (s *Scanner) scanDirectory(dir string) ([]*ExportFile, error) {
 	var exports []*ExportFile

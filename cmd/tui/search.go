@@ -19,8 +19,9 @@ import (
 
 // searchConversationItem implements list.Item for search result conversations
 type searchConversationItem struct {
-	conv     *models.Conversation
-	snippets []string // Sample snippets from matching messages
+	conv       *models.Conversation
+	matchCount int
+	snippets   []string // Sample snippets from matching messages
 }
 
 func (i searchConversationItem) Title() string {
@@ -30,18 +31,26 @@ func (i searchConversationItem) Title() string {
 func (i searchConversationItem) Description() string {
 	dateStr := formatConversationDates(i.conv.CreatedAt, i.conv.UpdatedAt)
 
+	matchLabel := ""
+	if i.matchCount == 1 {
+		matchLabel = " • 1 match"
+	} else if i.matchCount > 1 {
+		matchLabel = fmt.Sprintf(" • %d matches", i.matchCount)
+	}
+
 	snippet := ""
 	if len(i.snippets) > 0 {
 		snippet = i.snippets[0]
-		// Convert <mark> tags to proper highlighting
 		snippet = strings.ReplaceAll(snippet, "<mark>", "")
 		snippet = strings.ReplaceAll(snippet, "</mark>", "")
-		snippet = strings.ReplaceAll(snippet, "\n", " ")
-		if len(snippet) > 50 {
-			snippet = snippet[:47] + "..."
+		snippet = strings.Join(strings.Fields(snippet), " ")
+		runes := []rune(snippet)
+		if len(runes) > 65 {
+			snippet = string(runes[:62]) + "..."
 		}
+		snippet = " • " + snippet
 	}
-	return fmt.Sprintf("%s • %d messages • %s", dateStr, i.conv.MessageCount, snippet)
+	return fmt.Sprintf("%s • %d msgs%s%s", dateStr, i.conv.MessageCount, matchLabel, snippet)
 }
 
 func (i searchConversationItem) FilterValue() string {
@@ -59,10 +68,11 @@ const (
 // searchModel is the main model for search TUI
 type searchModel struct {
 	engine        *search.Engine
-	conversations []*models.Conversation // Conversations from grouped search results
+	conversations []*models.Conversation // Ranked conversations from search results
 	list          list.Model
 	textInput     textinput.Model
 	mode          Mode
+	searching     bool
 	selected      int
 	width         int
 	height        int
@@ -72,40 +82,30 @@ type searchModel struct {
 	convView conversationView
 }
 
-// newSearchModel creates a new search model
-func newSearchModel(engine *search.Engine, results []*models.SearchResult, query string) searchModel {
-	// Group search results by conversation
-	convMap := make(map[int64]*searchConversationItem)
+// newSearchModel creates a new search model preserving ranked conversation order.
+func newSearchModel(engine *search.Engine, results []*search.ConversationSearchResult, query string) searchModel {
+	items := make([]list.Item, 0, len(results))
+	conversations := make([]*models.Conversation, 0, len(results))
 
-	for _, result := range results {
-		if item, exists := convMap[result.ConversationID]; exists {
-			// Add snippet to existing conversation
-			item.snippets = append(item.snippets, result.Snippet)
-		} else {
-			// Get conversation details
-			conv, _, err := engine.GetConversation(result.ConversationID)
-			if err != nil {
-				continue // Skip if we can't get conversation details
+	for _, res := range results {
+		if res.Conversation == nil {
+			continue
+		}
+		snippets := make([]string, 0, 3)
+		for _, m := range res.Matches {
+			if len(snippets) >= 3 {
+				break
 			}
-
-			// Create new conversation item
-			convMap[result.ConversationID] = &searchConversationItem{
-				conv:     conv,
-				snippets: []string{result.Snippet},
+			if strings.TrimSpace(m.Snippet) != "" {
+				snippets = append(snippets, m.Snippet)
 			}
 		}
-	}
-
-	// Convert to list items and store conversations
-	items := make([]list.Item, 0, len(convMap))
-	conversations := make([]*models.Conversation, 0, len(convMap))
-	for _, item := range convMap {
-		// Limit snippets to avoid overwhelming display
-		if len(item.snippets) > 3 {
-			item.snippets = item.snippets[:3]
-		}
-		items = append(items, *item)
-		conversations = append(conversations, item.conv)
+		items = append(items, searchConversationItem{
+			conv:       res.Conversation,
+			matchCount: len(res.Matches),
+			snippets:   snippets,
+		})
+		conversations = append(conversations, res.Conversation)
 	}
 
 	// Create list
@@ -120,16 +120,17 @@ func newSearchModel(engine *search.Engine, results []*models.SearchResult, query
 		width, height = 80, 24
 	}
 
-	l := list.New(items, delegate, width, height-3)
-	l.Title = fmt.Sprintf("Search Results for: %s", query)
+	l := list.New(items, delegate, width, height-4)
+	l.Title = fmt.Sprintf("Search (%d): %s", len(conversations), query)
 	l.SetShowHelp(false)
 	l.DisableQuitKeybindings()
 
-	// Create text input for find
+	// Create text input for refining search directly from results
 	ti := textinput.New()
-	ti.Placeholder = "Find in conversation..."
-	ti.CharLimit = 100
-	ti.Width = 50
+	ti.Placeholder = "Search (e.g. python after:7d sender:human)..."
+	ti.CharLimit = 200
+	ti.Width = 60
+	ti.SetValue(query)
 
 	return searchModel{
 		engine:        engine,
@@ -167,6 +168,40 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.mode {
 		case ModeList:
+			if m.searching {
+				switch msg.String() {
+				case "enter":
+					query := strings.TrimSpace(m.textInput.Value())
+					m.searching = false
+					m.textInput.Blur()
+					if query != "" {
+						opts := search.ParseQuery(query)
+						opts.Limit = 200
+						if opts.SortBy == "" {
+							opts.SortBy = "relevance"
+						}
+						opts.SortOrder = "desc"
+						if results, err := m.engine.SearchConversationsGrouped(opts); err == nil {
+							next := newSearchModel(m.engine, results, query)
+							next.width = m.width
+							next.height = m.height
+							next.list.SetSize(m.width, m.height-4)
+							return next, nil
+						}
+					}
+					return m, nil
+				case "esc":
+					m.searching = false
+					m.textInput.SetValue(m.query)
+					m.textInput.Blur()
+					return m, nil
+				default:
+					ti, cmd := m.textInput.Update(msg)
+					m.textInput = ti
+					return m, cmd
+				}
+			}
+
 			// *** FIX: Check if the list is filtering before handling keys ***
 			// This prevents your custom navigation from overriding list filtering input
 			if m.list.FilterState() == list.Filtering {
@@ -176,6 +211,12 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q":
 				return m, tea.Quit
+			case "/":
+				m.searching = true
+				m.textInput.SetValue(m.query)
+				m.textInput.CursorEnd()
+				m.textInput.Focus()
+				return m, textinput.Blink
 			case "esc":
 				// ESC in search results goes back to browse mode
 				return m, func() tea.Msg { return switchToBrowseMsg{} }
@@ -286,9 +327,13 @@ func (m searchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m searchModel) View() string {
 	switch m.mode {
 	case ModeList:
+		searchBar := ""
+		if m.searching {
+			searchBar = TitleStyle.Render("Search: ") + m.textInput.View() + "\n"
+		}
 		content := m.list.View()
-		help := HelpStyle.Render("↑/↓/j/k: navigate • g/G: top/bottom • PgUp/PgDn: page • enter: view • o: open in claude.ai • q: quit")
-		return content + "\n" + help
+		help := HelpStyle.Render("↑/↓/j/k: navigate • /: refine search (after:, before:, sender:) • enter: view • o: open • esc: browse • q: quit")
+		return searchBar + content + "\n" + help
 
 	case ModeConversation:
 		// Delegate to conversation view

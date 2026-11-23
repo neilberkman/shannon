@@ -49,9 +49,12 @@ func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats,
 	stats := &models.ImportStats{}
 	startTime := time.Now()
 
+	// Resolve underlying file on disk (handles both plain JSON and .zip / .zip!entry paths).
+	diskPath, _, isZip := splitZipPath(filePath)
+
 	// Stat the file once and reuse for both the unchanged-file fast path and
 	// the streaming-vs-batch threshold below.
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(diskPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat file: %w", err)
 	}
@@ -61,7 +64,7 @@ func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats,
 	// inode, device), the file is unchanged and we can skip without hashing
 	// 25+ MB of JSON.
 	if !force {
-		if imported, err := i.isFileUnchangedSinceImport(filePath, fileInfo, inode, device); err != nil {
+		if imported, err := i.isFileUnchangedSinceImport(diskPath, fileInfo, inode, device); err != nil {
 			return nil, err
 		} else if imported {
 			return nil, fmt.Errorf("file already imported (unchanged)")
@@ -71,7 +74,7 @@ func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats,
 	// Slow path: hash the file. Catches the case where the same content lives
 	// at a different path (e.g. user renamed/moved the export folder) or a
 	// cloud-drive sync rewrote mtime without touching content.
-	hash, err := i.fileHash(filePath)
+	hash, err := i.fileHash(diskPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash file: %w", err)
 	}
@@ -82,12 +85,12 @@ func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats,
 		} else if imported {
 			// Backfill the identity fields on the existing row so the next run
 			// short-circuits via the fast path instead of re-hashing.
-			_ = i.backfillImportIdentity(filePath, hash, fileInfo, inode, device)
+			_ = i.backfillImportIdentity(diskPath, hash, fileInfo, inode, device)
 			return nil, fmt.Errorf("file already imported (hash: %s)", hash)
 		}
 	}
 
-	// Parse the export file
+	// Parse the export file (plain JSON or ZIP archive)
 	parser, err := NewParser(filePath)
 	if err != nil {
 		return nil, err
@@ -113,26 +116,26 @@ func (i *Importer) importFile(filePath string, force bool) (*models.ImportStats,
 		}
 	}()
 
-	// Use streaming parse for large files
-	if fileInfo.Size() > 100*1024*1024 { // 100MB
+	// Always stream-parse ZIP archives and large JSON files to bound memory.
+	if isZip || fileInfo.Size() > 10*1024*1024 {
 		err = i.streamImport(tx, parser, stats)
 	} else {
 		err = i.batchImport(tx, parser, stats)
 	}
 
 	if err != nil {
-		_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "failed", err.Error())
+		_ = i.recordImport(diskPath, hash, fileInfo, inode, device, stats, "failed", err.Error())
 		return stats, err
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "failed", err.Error())
+		_ = i.recordImport(diskPath, hash, fileInfo, inode, device, stats, "failed", err.Error())
 		return stats, fmt.Errorf("failed to commit: %w", err)
 	}
 
 	stats.Duration = time.Since(startTime)
-	_ = i.recordImport(filePath, hash, fileInfo, inode, device, stats, "success", "")
+	_ = i.recordImport(diskPath, hash, fileInfo, inode, device, stats, "success", "")
 
 	return stats, nil
 }
@@ -184,16 +187,12 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 		return fmt.Errorf("invalid updated_at: %w", err)
 	}
 
-	// Check if conversation already exists and get existing message UUIDs
-	existingMessages, err := i.getExistingMessages(tx, conv.UUID)
-	if err != nil {
-		return fmt.Errorf("failed to get existing messages: %w", err)
-	}
-
 	// Check if conversation exists
 	var convID int64
+	isNewConv := false
 	err = tx.QueryRow("SELECT id FROM conversations WHERE uuid = ?", conv.UUID).Scan(&convID)
 	if err == sql.ErrNoRows {
+		isNewConv = true
 		// Insert new conversation
 		result, err := tx.Exec(`
 			INSERT INTO conversations (uuid, name, created_at, updated_at, message_count)
@@ -230,8 +229,20 @@ func (i *Importer) importConversation(tx *sql.Tx, conv *models.ClaudeConversatio
 		return fmt.Errorf("failed to get or create main branch: %w", err)
 	}
 
+	// Load existing messages once (skipped for brand-new conversations)
+	existingState := &existingConvState{
+		byUUID:           make(map[string]existingMessage),
+		idByUUID:         make(map[string]int64),
+		mainParentHasKid: make(map[int64]bool),
+	}
+	if !isNewConv {
+		if err := i.loadExistingConvState(tx, convID, mainBranchID, existingState); err != nil {
+			return fmt.Errorf("failed to load existing messages: %w", err)
+		}
+	}
+
 	// Import only new messages using tree diff approach
-	newMessagesCount, branchesDetected, err := i.importNewMessages(tx, convID, mainBranchID, conv.ChatMessages, existingMessages, stats)
+	newMessagesCount, branchesDetected, err := i.importNewMessages(tx, convID, mainBranchID, conv.ChatMessages, existingState, stats)
 	if err != nil {
 		return fmt.Errorf("failed to import messages: %w", err)
 	}
@@ -249,19 +260,22 @@ type existingMessage struct {
 	searchText string
 }
 
-// getExistingMessages returns the already-imported messages of a conversation,
-// keyed by UUID, along with the text currently stored for each.
-func (i *Importer) getExistingMessages(tx *sql.Tx, convUUID string) (map[string]existingMessage, error) {
-	query := `
-		SELECT m.uuid, m.text, m.search_text
-		FROM messages m
-		JOIN conversations c ON m.conversation_id = c.id
-		WHERE c.uuid = ?
-	`
+type existingConvState struct {
+	byUUID           map[string]existingMessage
+	idByUUID         map[string]int64
+	mainParentHasKid map[int64]bool
+}
 
-	rows, err := tx.Query(query, convUUID)
+// loadExistingConvState loads all existing messages for a conversation in a
+// single query, replacing separate text/ID lookups and per-message branch queries.
+func (i *Importer) loadExistingConvState(tx *sql.Tx, convID, mainBranchID int64, state *existingConvState) error {
+	rows, err := tx.Query(`
+		SELECT id, uuid, text, search_text, parent_id, branch_id
+		FROM messages
+		WHERE conversation_id = ?
+	`, convID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -269,17 +283,26 @@ func (i *Importer) getExistingMessages(tx *sql.Tx, convUUID string) (map[string]
 		}
 	}()
 
-	existing := make(map[string]existingMessage)
 	for rows.Next() {
-		var uuid string
-		var prev existingMessage
-		if err := rows.Scan(&uuid, &prev.text, &prev.searchText); err != nil {
-			return nil, err
+		var (
+			id         int64
+			uuid       string
+			text       string
+			searchText string
+			parentID   sql.NullInt64
+			branchID   int64
+		)
+		if err := rows.Scan(&id, &uuid, &text, &searchText, &parentID, &branchID); err != nil {
+			return err
 		}
-		existing[uuid] = prev
+		state.byUUID[uuid] = existingMessage{text: text, searchText: searchText}
+		state.idByUUID[uuid] = id
+		if parentID.Valid && branchID == mainBranchID {
+			state.mainParentHasKid[parentID.Int64] = true
+		}
 	}
 
-	return existing, rows.Err()
+	return rows.Err()
 }
 
 // getOrCreateMainBranch gets existing main branch or creates it
@@ -301,21 +324,15 @@ func (i *Importer) getOrCreateMainBranch(tx *sql.Tx, convID int64) (int64, error
 }
 
 // importNewMessages imports only new messages, detecting branches based on parent relationships
-func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, messages []models.ClaudeChatMessage, existingMessages map[string]existingMessage, stats *models.ImportStats) (int, int, error) {
-	messageIDMap := make(map[string]int64)
+func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, messages []models.ClaudeChatMessage, existing *existingConvState, stats *models.ImportStats) (int, int, error) {
 	newMessagesCount := 0
 	branchesDetected := 0
-
-	// Load existing message ID mappings
-	if err := i.loadExistingMessageIDs(tx, convID, messageIDMap); err != nil {
-		return 0, 0, err
-	}
 
 	for idx, msg := range messages {
 		// An already-imported message is refreshed rather than skipped: an
 		// earlier version of the importer stored only part of each message,
 		// so re-importing the same export is how that content is recovered.
-		if prev, exists := existingMessages[msg.UUID]; exists {
+		if prev, exists := existing.byUUID[msg.UUID]; exists {
 			if err := i.refreshMessage(tx, &messages[idx], prev, stats); err != nil {
 				return newMessagesCount, branchesDetected, err
 			}
@@ -337,20 +354,19 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 		branchID := mainBranchID
 
 		if msg.ParentID != nil && *msg.ParentID != "" {
-			if pid, ok := messageIDMap[*msg.ParentID]; ok {
+			if pid, ok := existing.idByUUID[*msg.ParentID]; ok {
 				parentID = &pid
 
-				// Check if parent is in main branch - if not, this might be a new branch
-				if isNewBranch, err := i.detectNewBranch(tx, pid, mainBranchID); err != nil {
-					return newMessagesCount, branchesDetected, err
-				} else if isNewBranch {
-					// Create new branch
-					branchName := fmt.Sprintf("branch-%d", time.Now().Unix())
+				// If parent already has a child on main branch, start a new branch
+				if existing.mainParentHasKid[pid] {
+					branchName := fmt.Sprintf("branch-%d-%d", time.Now().Unix(), idx)
 					branchID, err = i.createBranch(tx, convID, branchName, &mainBranchID)
 					if err != nil {
 						return newMessagesCount, branchesDetected, err
 					}
 					branchesDetected++
+				} else {
+					existing.mainParentHasKid[pid] = true
 				}
 			}
 		}
@@ -366,54 +382,11 @@ func (i *Importer) importNewMessages(tx *sql.Tx, convID, mainBranchID int64, mes
 		}
 
 		msgID, _ := result.LastInsertId()
-		messageIDMap[msg.UUID] = msgID
+		existing.idByUUID[msg.UUID] = msgID
 		newMessagesCount++
 	}
 
 	return newMessagesCount, branchesDetected, nil
-}
-
-// loadExistingMessageIDs loads UUID to ID mappings for existing messages
-func (i *Importer) loadExistingMessageIDs(tx *sql.Tx, convID int64, messageIDMap map[string]int64) error {
-	rows, err := tx.Query(`
-		SELECT id, uuid FROM messages WHERE conversation_id = ?
-	`, convID)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close rows: %v\n", err)
-		}
-	}()
-
-	for rows.Next() {
-		var id int64
-		var uuid string
-		if err := rows.Scan(&id, &uuid); err != nil {
-			return err
-		}
-		messageIDMap[uuid] = id
-	}
-
-	return rows.Err()
-}
-
-// detectNewBranch determines if a new message creates a branch
-func (i *Importer) detectNewBranch(tx *sql.Tx, parentID, mainBranchID int64) (bool, error) {
-	// Check if parent already has children in main branch
-	var childCount int
-	err := tx.QueryRow(`
-		SELECT COUNT(*) FROM messages 
-		WHERE parent_id = ? AND branch_id = ?
-	`, parentID, mainBranchID).Scan(&childCount)
-
-	if err != nil {
-		return false, err
-	}
-
-	// If parent already has children, this creates a new branch
-	return childCount > 0, nil
 }
 
 func (i *Importer) createBranch(tx *sql.Tx, convID int64, name string, parentBranchID *int64) (int64, error) {

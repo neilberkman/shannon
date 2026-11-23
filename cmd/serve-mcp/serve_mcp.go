@@ -2,19 +2,21 @@ package servemcp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 
+	"github.com/neilberkman/shannon/cmd/root"
 	"github.com/neilberkman/shannon/internal/config"
 	"github.com/neilberkman/shannon/internal/db"
-	"github.com/neilberkman/shannon/internal/models"
+	"github.com/neilberkman/shannon/internal/imports"
 	"github.com/neilberkman/shannon/internal/search"
 )
 
@@ -22,6 +24,11 @@ import (
 // and hard-rejects at 25k. Targeting 9k leaves headroom. Token estimate
 // approximates len(json) / 4, which is conservative for mixed JSON/English.
 const MaxResponseTokens = 9000
+
+const (
+	maxTitleRunes   = 300
+	maxSnippetRunes = 500
+)
 
 func maxResponseBytes() int { return MaxResponseTokens * 4 }
 
@@ -35,8 +42,8 @@ var ServeMCPCmd = &cobra.Command{
   claude mcp add --scope user shannon $(which shannon) serve-mcp
 
 Tools exposed:
-  - search_conversations:    full-text search across imported conversations
-  - list_recent_conversations: most recently updated conversations
+  - search_conversations:      ranked full-text & filter search across imported conversations
+  - list_recent_conversations: most recently updated conversations (with optional date bounds)
   - get_conversation_messages: fetch messages from a conversation by UUID`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return run()
@@ -54,23 +61,36 @@ func run() error {
 
 	engine := search.NewEngine(database)
 
-	s := server.NewMCPServer("shannon", "1.0.0")
+	syncFn := func(ctx context.Context) {
+		syncCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		if _, err := imports.SyncDiscovered(syncCtx, database); err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: background export sync incomplete; serving cached data: %v\n", err)
+		}
+	}
 
-	registerSearchTool(s, engine)
-	registerListRecentTool(s, engine)
-	registerGetMessagesTool(s, engine)
+	version := root.Version
+	if version == "" {
+		version = "dev"
+	}
+	s := server.NewMCPServer("shannon", version)
+
+	registerSearchTool(s, engine, syncFn)
+	registerListRecentTool(s, engine, syncFn)
+	registerGetMessagesTool(s, engine, syncFn)
 
 	return server.ServeStdio(s)
 }
 
 // SearchConversationsArgs are the user-supplied arguments for search.
 type SearchConversationsArgs struct {
-	Query      string `json:"query"`
+	Query      string `json:"query,omitempty"`
 	Limit      int    `json:"limit,omitempty"`
 	Sender     string `json:"sender,omitempty"`
 	AfterDate  string `json:"after_date,omitempty"`
 	BeforeDate string `json:"before_date,omitempty"`
 	ExactMatch bool   `json:"exact_match,omitempty"`
+	SortBy     string `json:"sort_by,omitempty"`
 }
 
 // ConversationMatch groups search hits by conversation.
@@ -79,6 +99,7 @@ type ConversationMatch struct {
 	Name             string         `json:"name"`
 	UpdatedAt        string         `json:"updated_at"`
 	MessageCount     int            `json:"message_count"`
+	MatchCount       int            `json:"match_count"`
 	Matches          []MatchSnippet `json:"matches"`
 }
 
@@ -91,37 +112,43 @@ type MatchSnippet struct {
 	Sequence    int    `json:"sequence"`
 }
 
-func registerSearchTool(s *server.MCPServer, engine *search.Engine) {
+func registerSearchTool(s *server.MCPServer, engine *search.Engine, syncFn func(context.Context)) {
 	tool := mcp.NewTool("search_conversations",
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
-		mcp.WithDescription("Full-text search across imported Claude.ai conversations. Returns matched messages grouped by conversation, with snippets and conversation UUIDs that can be passed to get_conversation_messages."),
+		mcp.WithDescription("Full-text and filtered search across imported Claude.ai conversations (titles, messages, extended thinking, tool inputs/results, attachments, and uploaded filenames). Results are grouped by conversation and ranked by BM25 relevance, match count, title match, and recency. Automatically imports any newly downloaded Claude.ai .zip or JSON exports before searching."),
 		mcp.WithString("query",
-			mcp.Required(),
-			mcp.Description("FTS5 query. Supports AND/OR/NOT (case-insensitive), quoted phrases, and prefix wildcards (foo*).")),
+			mcp.Description("FTS5 query. Supports AND/OR/NOT (case-insensitive), quoted phrases, prefix wildcards (foo*), and inline filters (after:7d, after:yesterday, before:2026-01-01, sender:human). May be omitted when date or sender filters are provided.")),
 		mcp.WithNumber("limit",
 			mcp.Description("Max conversations to return (default: 10).")),
 		mcp.WithString("sender",
 			mcp.Description("Restrict matches to one sender: 'human' or 'assistant'.")),
 		mcp.WithString("after_date",
-			mcp.Description("Only messages created on or after this ISO 8601 date (e.g. 2026-01-01).")),
+			mcp.Description("Only matches/conversations on or after this date (YYYY-MM-DD, RFC3339, or relative like '7d', 'yesterday', '3-days-ago').")),
 		mcp.WithString("before_date",
-			mcp.Description("Only messages created on or before this ISO 8601 date.")),
+			mcp.Description("Only matches/conversations on or before this date (YYYY-MM-DD, RFC3339, or relative).")),
 		mcp.WithBoolean("exact_match",
 			mcp.Description("Treat query as an exact phrase (auto-quoted).")),
+		mcp.WithString("sort_by",
+			mcp.Description("Sort order: 'relevance' (default) or 'date'.")),
 	)
-	s.AddTool(tool, makeSearchHandler(engine))
+	s.AddTool(tool, makeSearchHandlerWithSync(engine, syncFn))
 }
 
 func makeSearchHandler(engine *search.Engine) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return makeSearchHandlerWithSync(engine, nil)
+}
+
+func makeSearchHandlerWithSync(engine *search.Engine, syncFn func(context.Context)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if syncFn != nil {
+			syncFn(ctx)
+		}
+
 		args, err := parseArgs[SearchConversationsArgs](request)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
-		}
-		if args.Query == "" {
-			return mcp.NewToolResultError("query is required"), nil
 		}
 
 		limit := args.Limit
@@ -129,43 +156,77 @@ func makeSearchHandler(engine *search.Engine) func(context.Context, mcp.CallTool
 			limit = 10
 		}
 
-		query := args.Query
-		if args.ExactMatch && len(query) > 0 && query[0] != '"' {
-			query = `"` + query + `"`
+		var opts search.SearchOptions
+		if args.ExactMatch {
+			q := strings.TrimSpace(args.Query)
+			if q != "" && !strings.HasPrefix(q, `"`) {
+				q = `"` + strings.ReplaceAll(q, `"`, `""`) + `"`
+			}
+			opts.Query = q
+		} else {
+			opts = search.ParseQuery(args.Query)
 		}
 
-		opts := search.SearchOptions{
-			Query:     query,
-			Sender:    args.Sender,
-			Limit:     limit * 5, // overfetch so we can group by conversation and still hit the limit
-			SortBy:    "relevance",
-			SortOrder: "desc",
+		opts.Limit = limit
+		if args.Sender != "" {
+			opts.Sender = strings.ToLower(args.Sender)
 		}
-		if d, err := parseFlexDate(args.AfterDate); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid after_date: %v", err)), nil
-		} else if !d.IsZero() {
+		if args.SortBy != "" {
+			opts.SortBy = strings.ToLower(args.SortBy)
+		}
+		if opts.SortBy == "" {
+			opts.SortBy = "relevance"
+		}
+		opts.SortOrder = "desc"
+
+		if args.AfterDate != "" {
+			d, err := parseFlexDate(args.AfterDate)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid after_date: %v", err)), nil
+			}
 			opts.StartDate = &d
 		}
-		if d, err := parseFlexDate(args.BeforeDate); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid before_date: %v", err)), nil
-		} else if !d.IsZero() {
+		if args.BeforeDate != "" {
+			d, err := parseFlexEndDate(args.BeforeDate)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid before_date: %v", err)), nil
+			}
 			opts.EndDate = &d
 		}
 
-		results, err := engine.Search(opts)
+		if strings.TrimSpace(opts.Query) == "" && !opts.HasFilters() {
+			return mcp.NewToolResultError("query or at least one filter (after_date, before_date, sender) is required"), nil
+		}
+
+		coreResults, err := engine.SearchConversationsGrouped(opts)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("search failed: %v", err)), nil
 		}
 
-		grouped := groupByConversation(results, limit)
-
-		// Enrich with updated_at and message_count so callers can rank
-		// conversations without a follow-up call.
-		for _, c := range grouped {
-			if meta, err := loadConversationMeta(engine, c.ConversationUUID); err == nil {
-				c.UpdatedAt = meta.updatedAt
-				c.MessageCount = meta.messageCount
+		const matchesPerConv = 3
+		grouped := make([]*ConversationMatch, 0, len(coreResults))
+		for _, cr := range coreResults {
+			entry := &ConversationMatch{
+				ConversationUUID: cr.Conversation.UUID,
+				Name:             truncateText(cr.Conversation.Name, maxTitleRunes),
+				UpdatedAt:        cr.Conversation.UpdatedAt.Format(time.RFC3339),
+				MessageCount:     cr.Conversation.MessageCount,
+				MatchCount:       len(cr.Matches),
+				Matches:          []MatchSnippet{},
 			}
+			for i, m := range cr.Matches {
+				if i >= matchesPerConv {
+					break
+				}
+				entry.Matches = append(entry.Matches, MatchSnippet{
+					MessageUUID: m.MessageUUID,
+					Sender:      m.Sender,
+					CreatedAt:   m.CreatedAt.Format(time.RFC3339),
+					Snippet:     truncateText(m.Snippet, maxSnippetRunes),
+					Sequence:    m.Sequence,
+				})
+			}
+			grouped = append(grouped, entry)
 		}
 
 		grouped, truncated := trimToFit(grouped, func(v []*ConversationMatch) []byte {
@@ -188,7 +249,9 @@ func makeSearchHandler(engine *search.Engine) func(context.Context, mcp.CallTool
 // ListRecentConversationsArgs are the user-supplied arguments for the
 // list_recent_conversations tool.
 type ListRecentConversationsArgs struct {
-	Limit int `json:"limit,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
+	AfterDate  string `json:"after_date,omitempty"`
+	BeforeDate string `json:"before_date,omitempty"`
 }
 
 // ConversationSummary is a single row in the recent-conversations response.
@@ -200,15 +263,27 @@ type ConversationSummary struct {
 	MessageCount     int    `json:"message_count"`
 }
 
-func registerListRecentTool(s *server.MCPServer, engine *search.Engine) {
+func registerListRecentTool(s *server.MCPServer, engine *search.Engine, syncFn func(context.Context)) {
 	tool := mcp.NewTool("list_recent_conversations",
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(true),
-		mcp.WithDescription("List the most recently updated conversations. Useful for 'what was I working on yesterday' queries."),
+		mcp.WithDescription("List the most recently updated Claude.ai conversations, optionally filtered by date range. Automatically imports any newly downloaded exports first."),
 		mcp.WithNumber("limit",
 			mcp.Description("Max conversations to return (default: 20).")),
+		mcp.WithString("after_date",
+			mcp.Description("Only conversations updated on or after this date (YYYY-MM-DD, RFC3339, or relative like '7d', 'yesterday').")),
+		mcp.WithString("before_date",
+			mcp.Description("Only conversations updated on or before this date.")),
 	)
-	s.AddTool(tool, func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.AddTool(tool, makeListRecentHandlerWithSync(engine, syncFn))
+}
+
+func makeListRecentHandlerWithSync(engine *search.Engine, syncFn func(context.Context)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if syncFn != nil {
+			syncFn(ctx)
+		}
+
 		args, err := parseArgs[ListRecentConversationsArgs](request)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -218,7 +293,23 @@ func registerListRecentTool(s *server.MCPServer, engine *search.Engine) {
 			limit = 20
 		}
 
-		convs, err := engine.GetAllConversations(limit, 0)
+		var startDate, endDate *time.Time
+		if args.AfterDate != "" {
+			d, err := parseFlexDate(args.AfterDate)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid after_date: %v", err)), nil
+			}
+			startDate = &d
+		}
+		if args.BeforeDate != "" {
+			d, err := parseFlexEndDate(args.BeforeDate)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid before_date: %v", err)), nil
+			}
+			endDate = &d
+		}
+
+		convs, err := engine.GetRecentConversations(limit, startDate, endDate)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("query failed: %v", err)), nil
 		}
@@ -227,7 +318,7 @@ func registerListRecentTool(s *server.MCPServer, engine *search.Engine) {
 		for _, c := range convs {
 			out = append(out, ConversationSummary{
 				ConversationUUID: c.UUID,
-				Name:             c.Name,
+				Name:             truncateText(c.Name, maxTitleRunes),
 				UpdatedAt:        c.UpdatedAt.Format(time.RFC3339),
 				CreatedAt:        c.CreatedAt.Format(time.RFC3339),
 				MessageCount:     c.MessageCount,
@@ -247,7 +338,7 @@ func registerListRecentTool(s *server.MCPServer, engine *search.Engine) {
 			return mcp.NewToolResultError(fmt.Sprintf("marshal: %v", err)), nil
 		}
 		return mcp.NewToolResultText(string(buf)), nil
-	})
+	}
 }
 
 // GetConversationMessagesArgs are the user-supplied arguments for fetching
@@ -280,7 +371,7 @@ type ConversationMessagesResponse struct {
 	TruncatedMessage string          `json:"truncated_message,omitempty"`
 }
 
-func registerGetMessagesTool(s *server.MCPServer, engine *search.Engine) {
+func registerGetMessagesTool(s *server.MCPServer, engine *search.Engine, syncFn func(context.Context)) {
 	tool := mcp.NewTool("get_conversation_messages",
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(true),
@@ -295,11 +386,19 @@ func registerGetMessagesTool(s *server.MCPServer, engine *search.Engine) {
 		mcp.WithNumber("context_size",
 			mcp.Description("Number of messages on either side of around_sequence (default: 10).")),
 	)
-	s.AddTool(tool, makeGetMessagesHandler(engine))
+	s.AddTool(tool, makeGetMessagesHandlerWithSync(engine, syncFn))
 }
 
 func makeGetMessagesHandler(engine *search.Engine) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return makeGetMessagesHandlerWithSync(engine, nil)
+}
+
+func makeGetMessagesHandlerWithSync(engine *search.Engine, syncFn func(context.Context)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if syncFn != nil {
+			syncFn(ctx)
+		}
+
 		args, err := parseArgs[GetConversationMessagesArgs](request)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -308,14 +407,9 @@ func makeGetMessagesHandler(engine *search.Engine) func(context.Context, mcp.Cal
 			return mcp.NewToolResultError("conversation_uuid is required"), nil
 		}
 
-		convID, name, err := lookupConversationByUUID(engine, args.ConversationUUID)
+		conv, messages, err := engine.GetConversationByUUID(args.ConversationUUID)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		_, messages, err := engine.GetConversation(convID)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to load conversation: %v", err)), nil
 		}
 
 		total := len(messages)
@@ -343,7 +437,7 @@ func makeGetMessagesHandler(engine *search.Engine) func(context.Context, mcp.Cal
 			details = details[len(details)-args.LastN:]
 		}
 
-		details, truncated := trimMessagesToFit(details, args.ConversationUUID, name, total, tailMode)
+		details, truncated := trimMessagesToFit(details, args.ConversationUUID, conv.Name, total, tailMode)
 
 		var fromSeq, toSeq int
 		if len(details) > 0 {
@@ -353,7 +447,7 @@ func makeGetMessagesHandler(engine *search.Engine) func(context.Context, mcp.Cal
 
 		resp := ConversationMessagesResponse{
 			ConversationUUID: args.ConversationUUID,
-			Name:             name,
+			Name:             truncateText(conv.Name, maxTitleRunes),
 			TotalCount:       total,
 			ReturnedFrom:     fromSeq,
 			ReturnedTo:       toSeq,
@@ -389,82 +483,13 @@ func windowAround(msgs []MessageDetail, target, ctxSize int) []MessageDetail {
 	return msgs[lo : hi+1]
 }
 
-type convMeta struct {
-	updatedAt    string
-	messageCount int
-}
-
-func loadConversationMeta(engine *search.Engine, uuid string) (convMeta, error) {
-	var (
-		t time.Time
-		n int
-	)
-	err := engine.DB().QueryRow(
-		`SELECT updated_at, message_count FROM conversations WHERE uuid = ?`,
-		uuid,
-	).Scan(&t, &n)
-	if err != nil {
-		return convMeta{}, err
+func truncateText(s string, maxRunes int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
 	}
-	return convMeta{updatedAt: t.Format(time.RFC3339), messageCount: n}, nil
-}
-
-func lookupConversationByUUID(engine *search.Engine, uuid string) (int64, string, error) {
-	var (
-		id   int64
-		name string
-	)
-	err := engine.DB().QueryRow(
-		`SELECT id, name FROM conversations WHERE uuid = ?`,
-		uuid,
-	).Scan(&id, &name)
-	if err == sql.ErrNoRows {
-		return 0, "", fmt.Errorf("conversation %s not found", uuid)
-	}
-	if err != nil {
-		return 0, "", fmt.Errorf("lookup failed: %w", err)
-	}
-	return id, name, nil
-}
-
-// groupByConversation collapses message-level search results into
-// conversation-level entries, preserving the original ranking by keeping the
-// first occurrence of each conversation and capping per-conversation matches
-// at 3 to keep responses readable.
-func groupByConversation(results []*models.SearchResult, limit int) []*ConversationMatch {
-	const matchesPerConv = 3
-	byUUID := map[string]*ConversationMatch{}
-	order := []*ConversationMatch{}
-	for _, r := range results {
-		entry, ok := byUUID[r.ConversationUUID]
-		if !ok {
-			entry = &ConversationMatch{
-				ConversationUUID: r.ConversationUUID,
-				Name:             r.ConversationName,
-			}
-			byUUID[r.ConversationUUID] = entry
-			order = append(order, entry)
-			if len(order) > limit {
-				// Stop accumulating new conversations once we have enough; we
-				// still let further hits land on already-tracked conversations
-				// (caller may have asked for them) up to matchesPerConv.
-				break
-			}
-		}
-		if len(entry.Matches) >= matchesPerConv {
-			continue
-		}
-		entry.Matches = append(entry.Matches, MatchSnippet{
-			MessageUUID: r.MessageUUID,
-			Sender:      r.Sender,
-			CreatedAt:   r.CreatedAt.Format(time.RFC3339),
-			Snippet:     r.Snippet,
-		})
-	}
-	if len(order) > limit {
-		order = order[:limit]
-	}
-	return order
+	return string(runes[:maxRunes]) + "…"
 }
 
 func parseArgs[T any](request mcp.CallToolRequest) (T, error) {
@@ -492,18 +517,21 @@ func coerceStringNumbers(m map[string]interface{}) {
 	}
 }
 
-// parseFlexDate accepts either an ISO date (YYYY-MM-DD) or a full RFC3339
-// timestamp. Empty input returns zero time without error.
+// parseFlexDate accepts ISO dates (YYYY-MM-DD), RFC3339 timestamps, and
+// relative expressions (7d, yesterday, 3-days-ago). Empty input returns zero
+// time without error.
 func parseFlexDate(s string) (time.Time, error) {
-	if s == "" {
+	if strings.TrimSpace(s) == "" {
 		return time.Time{}, nil
 	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, nil
-		}
+	return search.ParseDate(s, false)
+}
+
+func parseFlexEndDate(s string) (time.Time, error) {
+	if strings.TrimSpace(s) == "" {
+		return time.Time{}, nil
 	}
-	return time.Time{}, fmt.Errorf("expected YYYY-MM-DD or RFC3339, got %q", s)
+	return search.ParseDate(s, true)
 }
 
 func mustMarshal(v interface{}) []byte {

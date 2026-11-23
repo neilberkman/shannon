@@ -275,3 +275,42 @@ func TestTrimToFit_DropsTail(t *testing.T) {
 		t.Errorf("expected length to shrink, got %d", len(out))
 	}
 }
+
+func TestSearchHandler_PopulatesSequenceAndSupportsFilterOnlyAndTitleSearch(t *testing.T) {
+	engine := setupEngine(t)
+	handler := makeSearchHandler(engine)
+
+	type response struct {
+		Conversations []ConversationMatch `json:"conversations"`
+	}
+
+	// 1. Sequence is populated on search hits (needed for around_sequence).
+	resp := callHandler[response](t, handler, map[string]interface{}{
+		"query": "pandas",
+	})
+	if len(resp.Conversations) != 1 || len(resp.Conversations[0].Matches) != 1 {
+		t.Fatalf("unexpected search response: %+v", resp)
+	}
+	if resp.Conversations[0].Matches[0].Sequence != 1 {
+		t.Errorf("expected Sequence=1 for second message, got %d", resp.Conversations[0].Matches[0].Sequence)
+	}
+	if resp.Conversations[0].MatchCount != 1 {
+		t.Errorf("expected MatchCount=1, got %d", resp.Conversations[0].MatchCount)
+	}
+
+	// 2. Title-only search matches conversation name even if words aren't in messages.
+	titleResp := callHandler[response](t, handler, map[string]interface{}{
+		"query": "Alpha",
+	})
+	if len(titleResp.Conversations) != 1 || titleResp.Conversations[0].ConversationUUID != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("expected title match for 'Alpha', got %+v", titleResp.Conversations)
+	}
+
+	// 3. Filter-only search (date bound, empty query) returns matching conversations.
+	dateResp := callHandler[response](t, handler, map[string]interface{}{
+		"after_date": "2026-01-15",
+	})
+	if len(dateResp.Conversations) != 1 || dateResp.Conversations[0].ConversationUUID != "22222222-2222-2222-2222-222222222222" {
+		t.Errorf("expected only Feb conversation for after_date=2026-01-15, got %+v", dateResp.Conversations)
+	}
+}

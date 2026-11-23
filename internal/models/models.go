@@ -50,6 +50,7 @@ type SearchResult struct {
 	Snippet          string // Highlighted snippet
 	CreatedAt        time.Time
 	Rank             float64 // Relevance score
+	Sequence         int     // Message sequence within conversation
 }
 
 // ImportStats tracks import statistics

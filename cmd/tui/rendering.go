@@ -138,7 +138,7 @@ func RenderConversationWithArtifacts(conversation *models.Conversation, messages
 
 		// Message text with artifacts removed
 		text := strings.TrimSpace(msg.Text)
-		if messageArtifacts[msg.ID] != nil && len(messageArtifacts[msg.ID]) > 0 {
+		if len(messageArtifacts[msg.ID]) > 0 {
 			// Remove artifact tags from display
 			extractor := artifacts.NewExtractor()
 			text = extractor.ArtifactRegex.ReplaceAllString(text, "[Artifact: see below]")

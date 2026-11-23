@@ -5,6 +5,27 @@ All notable changes to Shannon will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-22
+
+### Added
+
+- **Conversation-level ranked search** — `SearchConversationsGrouped` merges FTS5 message hits with conversation title matches and ranks results by BM25 relevance, match count (capped so huge threads don't drown out focused ones), title match boost, and exponential recency decay. Used across the TUI and MCP server.
+- **Inline search filters & natural dates** — CLI `shannon search`, TUI search, and MCP `search_conversations` now parse inline `after:`, `before:`, `date:`, `sender:`/`from:`, and `sort:` filters (e.g. `after:7d`, `after:yesterday`, `after:3-days-ago`, `before:2026-01-15`, `sender:human`) and support filter-only searches with no keyword. Bare `before:` / `--before` dates are end-of-day inclusive.
+- **Direct `.zip` export import** — `shannon import` and `shannon discover --auto-import` now stream `conversations.json` straight out of Claude.ai `.zip` archives without manual extraction, with stat-based fast-skip on unchanged zips.
+- **Automatic incremental export sync in MCP** — `shannon serve-mcp` scans discovered export locations (checking zip headers without decoding JSON) and imports newly downloaded `.zip` or JSON exports before serving queries, falling back to cached data on timeout or error.
+- **Date range filters on `list_recent_conversations`** — MCP `list_recent_conversations` now accepts optional `after_date` and `before_date` parameters.
+- **In-place TUI search refinement** — pressing `/` in TUI search results lets you edit and re-run your query (including inline filters) without returning to browse mode.
+
+### Fixed
+
+- **BM25 relevance ordering was backwards** — SQLite FTS5 `rank` is negative (more negative = better match), so `ORDER BY rank DESC` was sorting the worst matches first. Relevance sorting now orders best matches first.
+- **TUI search results were randomly ordered** — grouping through a Go map randomized conversation order on every search. TUI search now preserves ranked conversation order.
+- **FTS5 syntax errors on punctuation** — queries containing hyphens, colons, dots, slashes, or `@` (e.g. `scikit-learn`, URLs, emails) are now safely quoted while preserving case-insensitive `AND`/`OR`/`NOT`, `"quoted phrases"`, and `prefix*` wildcards.
+- **Over-eager code index routing** — `isCodeQuery` now precompiles regexes once and matches technical terms on whole words only, so plain English words like `science` or `capital` stay on the porter-stemmed natural language index.
+- **Missing `sequence` on MCP search hits** — `search_conversations` now populates `sequence` (and `match_count`) on every returned match so `get_conversation_messages` `around_sequence` works directly from search results.
+- **SQLite concurrency & MCP version** — added `busy_timeout(5000)` to prevent `SQLITE_BUSY` during concurrent imports and MCP reads, removed raw SQL from the MCP handler, capped title/snippet lengths in MCP responses, and made `serve-mcp` report the actual build version instead of `1.0.0`.
+- **Faster incremental imports** — consolidated duplicate per-conversation message lookups and per-message branch `SELECT COUNT(*)` queries into a single pass per conversation.
+
 ## [0.4.1] - 2026-08-25
 
 ### Fixed
